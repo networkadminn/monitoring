@@ -44,6 +44,7 @@ $statusClass = match($latest['status'] ?? 'unknown') {
     'warning' => 'yellow',
     default   => 'muted',
 };
+$userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -51,7 +52,8 @@ $statusClass = match($latest['status'] ?? 'unknown') {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="<?= htmlspecialchars($csrf) ?>">
-  <title><?= htmlspecialchars($site['name']) ?> — Monitor</title>
+  <title><?= htmlspecialchars($site['name']) ?> — Site Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
   <link rel="stylesheet" href="assets/css/dashboard.css">
@@ -59,192 +61,160 @@ $statusClass = match($latest['status'] ?? 'unknown') {
 <body>
 <div class="layout">
 
+  <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-logo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
       </svg>
-      <span>Monitor</span>
+      <div class="sidebar-logo-text">Site<span>Monitor</span></div>
     </div>
+
+    <div class="sidebar-section">Monitoring</div>
     <nav>
       <a class="nav-item" href="index.php">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         <span>Dashboard</span>
+      </a>
+      <a class="nav-item" href="sites.php">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        <span>Monitors</span>
       </a>
       <a class="nav-item" href="settings.php">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
         <span>Settings</span>
       </a>
     </nav>
+
     <div class="sidebar-footer">
-      <span class="sidebar-user"><?= htmlspecialchars($_SESSION['user'] ?? 'admin') ?></span>
-      <a href="logout.php" class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%;text-align:center">Sign Out</a>
+      <div class="sidebar-avatar"><?= $userInitial ?></div>
+      <div class="sidebar-user-info">
+        <div class="sidebar-user-name"><?= htmlspecialchars($_SESSION['user'] ?? 'Admin') ?></div>
+        <div class="sidebar-user-role">Administrator</div>
+      </div>
+      <a href="logout.php" class="sidebar-logout" title="Sign out">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </a>
     </div>
   </aside>
 
-  <main class="main">
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Top bar -->
     <div class="topbar">
-      <div>
-        <a href="index.php" class="text-muted" style="font-size:13px">← Back to Dashboard</a>
-        <h1 style="margin-top:4px"><?= htmlspecialchars($site['name']) ?></h1>
+      <div class="topbar-left">
+        <div style="display:flex;align-items:center;gap:12px">
+          <a href="index.php" class="btn btn-ghost btn-sm" style="padding:4px 8px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </a>
+          <div class="topbar-title"><?= htmlspecialchars($site['name']) ?></div>
+        </div>
       </div>
       <div class="topbar-actions">
-        <button class="btn btn-ghost" onclick="exportCSV(<?= $siteId ?>)">Export CSV</button>
-        <button class="btn btn-primary" onclick="openSiteModal(<?= $siteId ?>)">Edit Site</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV(<?= $siteId ?>)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="openSiteModal(<?= $siteId ?>)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit Monitor
+        </button>
       </div>
     </div>
 
-    <!-- Info cards -->
-    <div class="cards">
-      <div class="card <?= $statusClass ?>">
-        <div class="card-label">Current Status</div>
-        <div class="card-value <?= $statusClass ?>"><?= strtoupper($latest['status'] ?? 'Unknown') ?></div>
-        <div class="card-sub"><?= htmlspecialchars($latest['error_message'] ?? 'All good') ?></div>
-      </div>
-      <div class="card blue">
-        <div class="card-label">Response Time</div>
-        <div class="card-value blue"><?= $latest['response_time'] ?? '—' ?> ms</div>
-        <div class="card-sub">Last check</div>
-      </div>
-      <div class="card green">
-        <div class="card-label">Uptime (30d)</div>
-        <div class="card-value green"><?= $uptime30 ?>%</div>
-        <div class="card-sub">7d: <?= $uptime7 ?>%</div>
-      </div>
-      <div class="card purple">
-        <div class="card-label">Monthly SLA</div>
-        <div class="card-value"><?= $sla ?>%</div>
-        <div class="card-sub"><?= date('F Y') ?></div>
-      </div>
-      <?php if ($latest['ssl_expiry_days'] !== null): ?>
-      <div class="card <?= $latest['ssl_expiry_days'] <= 7 ? 'red' : ($latest['ssl_expiry_days'] <= 30 ? 'yellow' : 'green') ?>">
-        <div class="card-label">SSL Expiry</div>
-        <div class="card-value"><?= $latest['ssl_expiry_days'] ?> days</div>
-        <div class="card-sub">Certificate</div>
-      </div>
-      <?php endif; ?>
-      <div class="card blue">
-        <div class="card-label">Check Type</div>
-        <div class="card-value blue" style="font-size:20px"><?= strtoupper(htmlspecialchars($site['check_type'])) ?></div>
-        <div class="card-sub"><?= htmlspecialchars($site['url']) ?></div>
-      </div>
-    </div>
+    <!-- Page content -->
+    <div class="page-content">
 
-    <!-- 7-day response trend with min/max bands -->
-    <div class="chart-panel full mb-4">
-      <div class="chart-title">7-Day Response Time Trend <span>With min/max bands</span></div>
-      <canvas id="chart-trend"></canvas>
-    </div>
-
-    <!-- 30-day daily uptime -->
-    <div class="charts-grid">
-      <div class="chart-panel">
-        <div class="chart-title">30-Day Daily Uptime</div>
-        <canvas id="chart-daily-uptime"></canvas>
+      <!-- Details grid -->
+      <div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr))">
+        <div class="card blue">
+          <div class="card-label">Uptime Percentage</div>
+          <div class="card-value"><?= $uptime30 ?>%</div>
+          <div class="card-sub">Last 30 days</div>
+        </div>
+        <div class="card blue">
+          <div class="card-label">Check Type</div>
+          <div class="card-value"><?= strtoupper($site['check_type']) ?></div>
+          <div class="card-sub"><?= htmlspecialchars($site['url']) ?></div>
+        </div>
+        <div class="card <?= $site['is_active'] ? 'green' : 'red' ?>">
+          <div class="card-label">Status</div>
+          <div class="card-value"><?= $site['is_active'] ? 'Active' : 'Paused' ?></div>
+          <div class="card-sub">Monitoring is enabled</div>
+        </div>
       </div>
-      <div class="chart-panel">
-        <div class="chart-title">Response Time Distribution <span>Last 100 checks</span></div>
-        <canvas id="chart-hist"></canvas>
+
+      <!-- Charts grid -->
+      <div class="charts-grid">
+        <div class="chart-panel">
+          <div class="chart-header"><div class="chart-title">30-Day Uptime</div></div>
+          <canvas id="chart-daily-uptime"></canvas>
+        </div>
+        <div class="chart-panel">
+          <div class="chart-header"><div class="chart-title">Response Distribution</div></div>
+          <canvas id="chart-hist"></canvas>
+        </div>
       </div>
-    </div>
 
-    <!-- Incident history -->
-    <div class="table-panel">
-      <div class="chart-title mb-4">Incident History</div>
-      <table id="incidents-table">
-        <thead>
-          <tr><th>Started</th><th>Resolved</th><th>Duration</th><th>Error</th></tr>
-        </thead>
-        <tbody>
-          <?php foreach ($incidents as $inc): ?>
-          <tr>
-            <td><?= htmlspecialchars($inc['started_at']) ?></td>
-            <td><?= $inc['ended_at'] ? htmlspecialchars($inc['ended_at']) : '<span class="text-red">Ongoing</span>' ?></td>
-            <td><?= $inc['duration_seconds'] ? formatDuration((int)$inc['duration_seconds']) : '—' ?></td>
-            <td class="text-muted"><?= htmlspecialchars($inc['error_message'] ?? '') ?></td>
-          </tr>
-          <?php endforeach; ?>
-          <?php if (empty($incidents)): ?>
-          <tr><td colspan="4" class="text-muted" style="text-align:center;padding:24px">No incidents recorded</td></tr>
-          <?php endif; ?>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Full logs table -->
-    <div class="table-panel">
-      <div class="chart-title mb-4">Recent Logs <span>Last 100 checks</span></div>
-      <table id="logs-table">
-        <thead>
-          <tr><th>Time</th><th>Status</th><th>Response (ms)</th><th>SSL Days</th><th>Error</th></tr>
-        </thead>
-        <tbody>
-          <?php foreach ($logs as $log): ?>
-          <tr>
-            <td><?= htmlspecialchars($log['created_at']) ?></td>
-            <td><span class="badge <?= htmlspecialchars($log['status']) ?>"><?= htmlspecialchars($log['status']) ?></span></td>
-            <td><?= htmlspecialchars($log['response_time']) ?></td>
-            <td><?= $log['ssl_expiry_days'] !== null ? htmlspecialchars($log['ssl_expiry_days']) : '—' ?></td>
-            <td class="text-muted"><?= htmlspecialchars($log['error_message'] ?? '') ?></td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Edit form -->
-    <div class="table-panel">
-      <div class="chart-title mb-4">Edit Configuration</div>
-      <form id="site-form" onsubmit="saveSite(event)">
-        <input type="hidden" id="site-id" value="<?= $siteId ?>">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-          <div class="form-group">
-            <label>Site Name</label>
-            <input type="text" id="site-name" class="form-control" value="<?= htmlspecialchars($site['name']) ?>" required>
-          </div>
-          <div class="form-group">
-            <label>URL</label>
-            <input type="url" id="site-url" class="form-control" value="<?= htmlspecialchars($site['url']) ?>" required>
-          </div>
-          <div class="form-group">
-            <label>Check Type</label>
-            <select id="site-check-type" class="form-control">
-              <?php foreach (['http','ssl','port','dns','keyword'] as $t): ?>
-              <option value="<?= $t ?>" <?= $site['check_type'] === $t ? 'selected' : '' ?>><?= strtoupper($t) ?></option>
+      <!-- Incidents -->
+      <div class="table-panel">
+        <div class="table-panel-header"><div class="table-panel-title">Incidents History</div></div>
+        <div class="table-wrap">
+          <table id="incidents-table">
+            <thead>
+              <tr><th>Started</th><th>Resolved</th><th>Duration</th><th>Error</th></tr>
+            </thead>
+            <tbody>
+              <?php foreach ($incidents as $inc): ?>
+              <tr>
+                <td><?= htmlspecialchars($inc['started_at']) ?></td>
+                <td><?= $inc['ended_at'] ? htmlspecialchars($inc['ended_at']) : '<span class="text-red">Ongoing</span>' ?></td>
+                <td><?= $inc['duration_seconds'] ? formatDuration((int)$inc['duration_seconds']) : '—' ?></td>
+                <td class="text-muted"><?= htmlspecialchars($inc['error_message'] ?? '') ?></td>
+              </tr>
               <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Expected HTTP Status</label>
-            <input type="number" id="site-expected" class="form-control" value="<?= (int)$site['expected_status'] ?>">
-          </div>
-          <div class="form-group">
-            <label>Port</label>
-            <input type="number" id="site-port" class="form-control" value="<?= htmlspecialchars($site['port'] ?? '') ?>">
-          </div>
-          <div class="form-group">
-            <label>Hostname</label>
-            <input type="text" id="site-hostname" class="form-control" value="<?= htmlspecialchars($site['hostname'] ?? '') ?>">
-          </div>
-          <div class="form-group">
-            <label>Keyword</label>
-            <input type="text" id="site-keyword" class="form-control" value="<?= htmlspecialchars($site['keyword'] ?? '') ?>">
-          </div>
-          <div class="form-group">
-            <label>Alert Email</label>
-            <input type="email" id="site-email" class="form-control" value="<?= htmlspecialchars($site['alert_email'] ?? '') ?>">
-          </div>
+            </tbody>
+          </table>
+          <?php if (empty($incidents)): ?>
+            <div class="empty-state">No incidents recorded</div>
+          <?php endif; ?>
         </div>
-        <div class="form-group" style="display:flex;align-items:center;gap:10px">
-          <input type="checkbox" id="site-active" <?= $site['is_active'] ? 'checked' : '' ?> style="width:16px;height:16px">
-          <label for="site-active" style="margin:0">Active</label>
-        </div>
-        <button type="submit" class="btn btn-primary">Save Changes</button>
-      </form>
-    </div>
+      </div>
 
-  </main>
-</div>
+      <!-- Logs -->
+      <div class="table-panel">
+        <div class="table-panel-header"><div class="table-panel-title">Recent Check Logs</div></div>
+        <div class="table-wrap">
+          <table id="logs-table">
+            <thead>
+              <tr><th>Time</th><th>Status</th><th>RT</th><th>Error / Info</th></tr>
+            </thead>
+            <tbody>
+              <?php foreach ($logs as $l): ?>
+              <tr>
+                <td style="font-size:12px"><?= htmlspecialchars($l['created_at']) ?></td>
+                <td><span class="badge <?= $l['status'] ?>"><span class="badge-dot"></span><?= $l['status'] ?></span></td>
+                <td><?= round($l['response_time']) ?> ms</td>
+                <td class="text-muted" style="font-size:12px"><?= htmlspecialchars($l['error_message'] ?? '') ?></td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+          <?php if (empty($logs)): ?>
+            <div class="empty-state">No logs recorded yet</div>
+          <?php endif; ?>
+        </div>
+      </div>
+
+    </div><!-- /page-content -->
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- Modals -->
+<?php require_once 'includes/modals.php'; ?>
 
 <div id="toast-container"></div>
 
@@ -261,57 +231,7 @@ const SITE_ID       = <?= $siteId ?>;
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="assets/js/dashboard.js"></script>
 <script>
-// ── Site detail charts (rendered from inline PHP data) ────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // 7-day trend with min/max bands
-  const trendCtx = document.getElementById('chart-trend');
-  if (trendCtx && TREND_DATA.length) {
-    new Chart(trendCtx, {
-      type: 'line',
-      data: {
-        labels: TREND_DATA.map(r => r.hour.slice(5, 16)),
-        datasets: [
-          {
-            label: 'Avg RT (ms)',
-            data: TREND_DATA.map(r => r.avg_rt),
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59,130,246,0.15)',
-            fill: true,
-            tension: 0.4,
-            pointRadius: 2,
-          },
-          {
-            label: 'Max RT',
-            data: TREND_DATA.map(r => r.max_rt),
-            borderColor: '#ef4444',
-            borderDash: [4, 4],
-            fill: false,
-            tension: 0.4,
-            pointRadius: 0,
-          },
-          {
-            label: 'Min RT',
-            data: TREND_DATA.map(r => r.min_rt),
-            borderColor: '#22c55e',
-            borderDash: [4, 4],
-            fill: false,
-            tension: 0.4,
-            pointRadius: 0,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { position: 'bottom' } },
-        scales: {
-          y: { title: { display: true, text: 'ms' }, beginAtZero: true },
-          x: { ticks: { maxTicksLimit: 14 } },
-        },
-      },
-    });
-  }
-
   // 30-day daily uptime bar chart
   const dailyCtx = document.getElementById('chart-daily-uptime');
   if (dailyCtx && DAILY_DATA.length) {

@@ -19,9 +19,19 @@ let lastAddedSiteId = null; // To highlight newly added site
 
 // ── Init ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  const path = window.location.pathname;
+  const page = path.split('/').pop() || 'index.php';
+
   initCheckboxDelegation();
-  loadDashboard();
-  refreshTimer = setInterval(loadDashboard, 60000);
+
+  if (page === 'index.php' || page === 'sites.php' || page === '') {
+    loadDashboard();
+    refreshTimer = setInterval(loadDashboard, 60000);
+  }
+
+  if (page === 'site_details.php') {
+    initSiteDetails();
+  }
 
   // Topbar buttons
   document.getElementById('btn-add-site')?.addEventListener('click', () => openSiteModal());
@@ -59,25 +69,36 @@ async function loadDashboard() {
   const overlay = document.getElementById('sites-loading-overlay');
   if (overlay) overlay.classList.add('active');
 
-  try {
-    const [health, sites, incidents, ssl, slowest] = await Promise.all([
-      apiFetch('health'),
-      apiFetch('sites'),
-      apiFetch('incidents'),
-      apiFetch('ssl_expiry'),
-      apiFetch('slowest'),
-    ]);
+  const path = window.location.pathname;
+  const page = path.split('/').pop() || 'index.php';
 
-    sitesData = sites;
-    renderHealthCards(health);
-    renderSitesTable(sites);
-    renderIncidentsTable(incidents);
+  try {
+    if (page === 'index.php' || page === '' || page === 'dashboard.php') {
+      const [health, sites, incidents, ssl, slowest] = await Promise.all([
+        apiFetch('health'),
+        apiFetch('sites'),
+        apiFetch('incidents'),
+        apiFetch('ssl_expiry'),
+        apiFetch('slowest'),
+      ]);
+
+      sitesData = sites;
+      renderHealthCards(health);
+      renderSitesTable(sites);
+      renderIncidentsTable(incidents);
     renderSSLChart(ssl);
+    renderStatusTypesChart(sites);
     renderUptimeChart(sites);
     renderResponseTrendChart(sites);
-    renderHistogramChart(sites);
-    renderGauge(health.health_score);
-    renderSlowestList(slowest);
+      renderHistogramChart(sites);
+      renderGauge(health.health_score);
+      renderSlowestList(slowest);
+    } else if (page === 'sites.php') {
+      const sites = await apiFetch('sites');
+      sitesData = sites;
+      renderSitesTable(sites);
+    }
+
     updateLastUpdated();
   } catch (err) {
     showToast('Failed to load dashboard: ' + err.message, 'error');
@@ -378,6 +399,44 @@ function renderSSLChart(sslData) {
         y: { title: { display: true, text: 'Days Remaining' }, beginAtZero: true },
       },
     },
+  });
+}
+
+// ── Status by type doughnut ───────────────────────────────────────────────
+function renderStatusTypesChart(sites) {
+  const ctx = document.getElementById('chart-status-types');
+  if (!ctx || !sites.length) return;
+
+  const counts = {};
+  sites.forEach(s => {
+    const t = s.check_type || 'http';
+    counts[t] = (counts[t] || 0) + 1;
+  });
+
+  const labels = Object.keys(counts).map(k => k.toUpperCase());
+  const data   = Object.values(counts);
+  const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+  destroyChart('status-types');
+  charts['status-types'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors,
+        borderWidth: 0,
+        hoverOffset: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 12, padding: 15 } }
+      },
+      cutout: '60%'
+    }
   });
 }
 
@@ -801,4 +860,74 @@ async function exportCSV(siteId) {
   const a       = document.createElement('a');
   a.href = url; a.download = `site_${siteId}_logs.csv`; a.click();
   URL.revokeObjectURL(url);
+}
+
+// ── Site Details Page ─────────────────────────────────────────────────────
+function initSiteDetails() {
+  const params = new URLSearchParams(window.location.search);
+  const siteId = params.get('id');
+  if (!siteId) return;
+
+  // Init DataTables with proper error handling
+  if (window.jQuery && $.fn.DataTable) {
+    // Check if table has rows before initializing to avoid "Incorrect column count" if empty
+    if ($('#logs-table tbody tr').length > 0 && $('#logs-table tbody tr td').length > 1) {
+      $('#logs-table').DataTable({ pageLength: 25, order: [[0, 'desc']] });
+    }
+    if ($('#incidents-table tbody tr').length > 0 && $('#incidents-table tbody tr td').length > 1) {
+      $('#incidents-table').DataTable({ pageLength: 10, order: [[0, 'desc']] });
+    }
+  }
+
+  // Render charts for this specific site
+  renderSiteDetailsCharts(siteId);
+}
+
+async function renderSiteDetailsCharts(id) {
+  try {
+    const [uptime, hist] = await Promise.all([
+      apiFetch(`uptime_chart&id=${id}`),
+      apiFetch(`histogram&id=${id}`),
+    ]);
+
+    const uCtx = document.getElementById('chart-uptime-detail');
+    if (uCtx) {
+      destroyChart('uptime-detail');
+      charts['uptime-detail'] = new Chart(uCtx, {
+        type: 'line',
+        data: {
+          labels: uptime.map(d => d.date),
+          datasets: [{
+            label: 'Uptime %',
+            data: uptime.map(d => d.uptime_percentage),
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34,197,94,0.15)',
+            fill: true,
+            tension: 0.3,
+          }],
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+    }
+
+    const hCtx = document.getElementById('chart-histogram-detail');
+    if (hCtx) {
+      destroyChart('histogram-detail');
+      charts['histogram-detail'] = new Chart(hCtx, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(hist).map(k => k + ' ms'),
+          datasets: [{
+            label: 'Checks',
+            data: Object.values(hist),
+            backgroundColor: '#3b82f6',
+            borderRadius: 4,
+          }],
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load site charts:', err);
+  }
 }
