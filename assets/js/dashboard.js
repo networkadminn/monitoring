@@ -243,6 +243,7 @@ function renderSitesTable(sites) {
   if (window.jQuery && $.fn.DataTable) {
     sitesTable = $('#sites-table').DataTable({
       pageLength: 25,
+      stateSave: true, // Remember page, search, etc.
       order: [[2, 'asc']],
       columnDefs: [{ orderable: false, targets: [0, 5, 7] }],
       language: { search: 'Filter:', lengthMenu: 'Show _MENU_ monitors' },
