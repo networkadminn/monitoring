@@ -17,19 +17,23 @@ let sitesTable = null; // DataTable instance
 let refreshTimer = null;
 let lastAddedSiteId = null; // To highlight newly added site
 
+// Global error handler for debugging
+window.addEventListener('error', (e) => {
+  console.error('Unhandled JS Error:', e.error);
+  showToast('Interface error: ' + (e.error?.message || 'Check console'), 'error');
+});
+
 // ── Init ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  const path = window.location.pathname;
-  const page = path.split('/').pop() || 'index.php';
-
   initCheckboxDelegation();
 
-  if (page === 'index.php' || page === 'sites.php' || page === '') {
+  // Load dashboard data if either dashboard or sites table is present
+  if (document.getElementById('chart-status-types') || document.getElementById('sites-table')) {
     loadDashboard();
-    refreshTimer = setInterval(loadDashboard, 30000); // Changed to 30s for better real-time feel
+    refreshTimer = setInterval(loadDashboard, 30000);
   }
 
-  if (page === 'site_details.php') {
+  if (document.getElementById('site-detail-container')) {
     initSiteDetails();
   }
 
@@ -216,93 +220,104 @@ function renderSitesTable(sites) {
   }
 
   tbody.innerHTML = sites.map(s => {
-    const uptime   = parseFloat(s.uptime_percentage) || 0;
-    const barColor = uptime >= 99 ? 'green' : uptime >= 95 ? 'yellow' : 'red';
-    const rt       = s.response_time ? Math.round(s.response_time) + ' ms' : '—';
-    const checked  = s.last_checked ? timeAgo(s.last_checked) : 'Never';
-    const status   = s.status || 'unknown';
-    const domain   = (() => { try { return new URL(s.url).hostname; } catch(e) { return s.url; } })();
-    const tags     = (s.tags || '').split(',').map(t => t.trim()).filter(t => t).map(t => `<span class="tag-badge">${esc(t)}</span>`).join('');
-    const error    = s.status === 'down' ? `<div class="text-red" style="font-size:11px;margin-top:4px">${esc(s.error_message)}</div>` : '';
-    
-    // SSL Badge
-    let sslBadge = '';
-    if (s.ssl_expiry_days !== null) {
-      const sslCls = s.ssl_expiry_days <= 7 ? 'red' : s.ssl_expiry_days <= 30 ? 'yellow' : 'green';
-      sslBadge = `<div style="font-size:10px;margin-top:4px;color:var(--${sslCls})">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="vertical-align:middle;margin-right:2px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        ${s.ssl_expiry_days}d left
-      </div>`;
-    }
+    try {
+      const uptime   = parseFloat(s.uptime_percentage) || 0;
+      const barColor = uptime >= 99 ? 'green' : uptime >= 95 ? 'yellow' : 'red';
+      const rt       = s.response_time ? Math.round(s.response_time) + ' ms' : '—';
+      const checked  = s.last_checked ? timeAgo(s.last_checked) : 'Never';
+      const status   = s.status || 'unknown';
+      const domain   = (() => { try { return new URL(s.url).hostname; } catch(e) { return s.url; } })();
+      const tags     = (s.tags || '').split(',').map(t => t.trim()).filter(t => t).map(t => `<span class="tag-badge">${esc(t)}</span>`).join('');
+      const error    = s.status === 'down' ? `<div class="text-red" style="font-size:11px;margin-top:4px">${esc(s.error_message)}</div>` : '';
+      
+      // SSL Badge
+      let sslBadge = '';
+      if (s.ssl_expiry_days !== null) {
+        const sslCls = s.ssl_expiry_days <= 7 ? 'red' : s.ssl_expiry_days <= 30 ? 'yellow' : 'green';
+        sslBadge = `<div style="font-size:10px;margin-top:4px;color:var(--${sslCls})">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="vertical-align:middle;margin-right:2px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          ${s.ssl_expiry_days}d left
+        </div>`;
+      }
 
-    // 30 uptime blocks proportional to uptime %
-    const filledCount = Math.round(uptime * 30 / 100);
-    const blockCls    = uptime >= 99 ? 'up' : uptime >= 90 ? 'partial' : 'down';
-    const blocks = Array.from({length: 30}, (_, i) =>
-      `<div class="uptime-block ${i < filledCount ? blockCls : 'empty'}" title="Day ${i+1}"></div>`
-    ).join('');
+      // 30 uptime blocks proportional to uptime %
+      const filledCount = Math.round(uptime * 30 / 100);
+      const blockCls    = uptime >= 99 ? 'up' : uptime >= 90 ? 'partial' : 'down';
+      const blocks = Array.from({length: 30}, (_, i) =>
+        `<div class="uptime-block ${i < filledCount ? blockCls : 'empty'}" title="Day ${i+1}"></div>`
+      ).join('');
 
-    const isNew = lastAddedSiteId == s.id;
-    const rowCls = isNew ? 'row-new pulse-highlight' : '';
+      const isNew = lastAddedSiteId == s.id;
+      const rowCls = isNew ? 'row-new pulse-highlight' : '';
 
-    return `<tr class="${rowCls}">
-      <td><input type="checkbox" class="site-checkbox" data-id="${s.id}" data-name="${esc(s.name)}" style="cursor:pointer"></td>
-      <td>
-        <div class="site-name-cell">
-          <div class="site-favicon">
-            <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32" onerror="this.style.display='none'" alt="">
-          </div>
-          <div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <a href="site_details.php?id=${s.id}" class="site-name-link">${esc(s.name)}</a>
-              ${tags}
+      return `<tr class="${rowCls}">
+        <td><input type="checkbox" class="site-checkbox" data-id="${s.id}" data-name="${esc(s.name)}" style="cursor:pointer"></td>
+        <td>
+          <div class="site-name-cell">
+            <div class="site-favicon">
+              <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32" onerror="this.style.display='none'" alt="">
             </div>
-            <div class="site-url-small truncate">${esc(s.url)}</div>
+            <div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <a href="site_details.php?id=${s.id}" class="site-name-link">${esc(s.name)}</a>
+                ${tags}
+              </div>
+              <div class="site-url-small truncate">${esc(s.url)}</div>
+            </div>
           </div>
-        </div>
-      </td>
-      <td>
-        <span class="badge ${status}"><span class="badge-dot"></span>${status}</span>
-        ${error}
-        ${sslBadge}
-      </td>
-      <td style="font-weight:500">${rt}</td>
-      <td>
-        <div class="uptime-cell">
-          <div class="progress"><div class="progress-bar ${barColor}" style="width:${uptime}%"></div></div>
-          <span class="uptime-pct" style="color:var(--${barColor})">${uptime}%</span>
-        </div>
-      </td>
-      <td><div class="uptime-blocks">${blocks}</div></td>
-      <td class="text-muted" style="font-size:12px">${checked}</td>
-      <td>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" onclick="openSiteModal(${s.id})">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            Edit
-          </button>
-          <button class="btn btn-danger btn-sm" onclick="confirmDeleteSite(${s.id}, '${esc(s.name)}')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-          </button>
-        </div>
-      </td>
-    </tr>`;
+        </td>
+        <td>
+          <span class="badge ${status}"><span class="badge-dot"></span>${status}</span>
+          ${error}
+          ${sslBadge}
+        </td>
+        <td style="font-weight:500">${rt}</td>
+        <td>
+          <div class="uptime-cell">
+            <div class="progress"><div class="progress-bar ${barColor}" style="width:${uptime}%"></div></div>
+            <span class="uptime-pct" style="color:var(--${barColor})">${uptime}%</span>
+          </div>
+        </td>
+        <td><div class="uptime-blocks">${blocks}</div></td>
+        <td class="text-muted" style="font-size:12px">${checked}</td>
+        <td>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" onclick="openSiteModal(${s.id})">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Edit
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="confirmDeleteSite(${s.id}, '${esc(s.name)}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+    } catch (e) {
+      console.error('Error rendering site row:', e, s);
+      return '';
+    }
   }).join('');
 
   // Init DataTable — use scrollX for wide tables
   if (window.jQuery && $.fn.DataTable) {
-    sitesTable = $('#sites-table').DataTable({
+    const tableEl = $('#sites-table');
+    sitesTable = tableEl.DataTable({
       pageLength: 25,
-      stateSave: true, // Remember page, search, etc.
+      stateSave: true,
       stateDuration: 60 * 60 * 24, // 24 hours
       order: [[2, 'asc']],
       columnDefs: [{ orderable: false, targets: [0, 5, 7] }],
       language: { search: 'Filter:', lengthMenu: 'Show _MENU_ monitors' },
       drawCallback: function() {
-        // Re-bind checkboxes after every DataTable redraw (pagination, search, etc.)
         bindCheckboxEvents();
       },
     });
+
+    // If we're on a filtered view, ensure DataTables search is cleared to avoid double-filtering
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('type') || params.get('tag')) {
+      sitesTable.search('').draw(false);
+    }
   } else {
     bindCheckboxEvents();
   }
