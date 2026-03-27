@@ -26,8 +26,8 @@ define('LOG_RETENTION_DAYS', 90);  // days to keep raw logs
 // Dashboard session auth
 // To generate a new hash: php -r "echo password_hash('yourpassword', PASSWORD_BCRYPT);"
 define('DASHBOARD_AUTH', true);
-define('DASHBOARD_USER', 'admin');
-define('DASHBOARD_PASS', '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'); // password: changeme
+define('DASHBOARD_USER', 'essadminmonitoringfefevrvand');
+define('DASHBOARD_PASS', '$2y$10$aeACh1P1WjrZMc1klpzdjel2xVIBIz.p70JjEM.x0xMBAgS7EQzIu');
 
 // App base URL (no trailing slash)
 define('APP_URL', 'https://monitoring.euclideesolutions.com');
