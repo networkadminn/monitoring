@@ -81,6 +81,12 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
         <div class="topbar-title">Dashboard</div>
         <div class="last-updated" id="last-updated"></div>
       </div>
+      <div class="topbar-center">
+        <div class="search-wrap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="site-search" placeholder="Search monitors..." autocomplete="off">
+        </div>
+      </div>
       <div class="topbar-actions">
         <button class="btn btn-ghost btn-sm" id="btn-refresh">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
@@ -201,8 +207,8 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
         </div>
       </div>
 
-      <!-- Histogram + Gauge -->
-      <div class="charts-grid">
+      <!-- Histogram + Gauge + Slowest -->
+      <div class="charts-grid" style="grid-template-columns: 1fr 1fr 1fr">
         <div class="chart-panel">
           <div class="chart-header">
             <div>
@@ -212,6 +218,7 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
           </div>
           <canvas id="chart-histogram"></canvas>
         </div>
+
         <div class="chart-panel">
           <div class="chart-header">
             <div>
@@ -220,9 +227,21 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
             </div>
           </div>
           <div class="gauge-wrap">
-            <canvas id="chart-gauge" style="max-height:180px;max-width:180px"></canvas>
+            <canvas id="chart-gauge" style="max-height:160px;max-width:160px"></canvas>
             <div class="gauge-score" id="gauge-score"><?= $health['health_score'] ?>%</div>
             <div class="gauge-label">Overall Health</div>
+          </div>
+        </div>
+
+        <div class="chart-panel">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Slowest Monitors</div>
+              <div class="chart-subtitle">Average last 24h</div>
+            </div>
+          </div>
+          <div id="slowest-list" class="slowest-list">
+            <div class="empty-state">Loading...</div>
           </div>
         </div>
       </div>
@@ -324,6 +343,10 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
           <div class="form-group" style="display:flex;align-items:center;gap:10px">
             <input type="checkbox" id="site-active" checked style="width:15px;height:15px;cursor:pointer">
             <label for="site-active" style="margin:0;cursor:pointer">Active (enable monitoring)</label>
+          </div>
+          <div class="form-group">
+            <label>Tags (comma separated)</label>
+            <input type="text" id="site-tags" class="form-control" placeholder="Production, API, Critical">
           </div>
         </div>
 

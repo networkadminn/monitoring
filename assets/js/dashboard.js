@@ -37,6 +37,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === e.currentTarget) closeModal();
   });
 
+  // Search filter
+  document.getElementById('site-search')?.addEventListener('input', (e) => {
+    filterSites(e.target.value);
+  });
+
   // Confirm modal
   document.getElementById('confirm-cancel')?.addEventListener('click', closeConfirm);
   document.getElementById('confirm-overlay')?.addEventListener('click', (e) => {
@@ -55,11 +60,12 @@ async function loadDashboard() {
   if (overlay) overlay.classList.add('active');
 
   try {
-    const [health, sites, incidents, ssl] = await Promise.all([
+    const [health, sites, incidents, ssl, slowest] = await Promise.all([
       apiFetch('health'),
       apiFetch('sites'),
       apiFetch('incidents'),
       apiFetch('ssl_expiry'),
+      apiFetch('slowest'),
     ]);
 
     sitesData = sites;
@@ -71,12 +77,47 @@ async function loadDashboard() {
     renderResponseTrendChart(sites);
     renderHistogramChart(sites);
     renderGauge(health.health_score);
+    renderSlowestList(slowest);
     updateLastUpdated();
   } catch (err) {
     showToast('Failed to load dashboard: ' + err.message, 'error');
   } finally {
     if (overlay) overlay.classList.remove('active');
   }
+}
+
+function filterSites(query) {
+  const q = query.toLowerCase().trim();
+  const filtered = sitesData.filter(s =>
+    s.name.toLowerCase().includes(q) ||
+    s.url.toLowerCase().includes(q) ||
+    (s.tags && s.tags.toLowerCase().includes(q))
+  );
+  renderSitesTable(filtered);
+}
+
+function renderSlowestList(slowest) {
+  const list = document.getElementById('slowest-list');
+  if (!list) return;
+
+  if (!slowest.length) {
+    list.innerHTML = '<div class="empty-state">No data available</div>';
+    return;
+  }
+
+  const maxRt = Math.max(...slowest.map(s => s.avg_rt));
+  list.innerHTML = slowest.map(s => {
+    const pct = (s.avg_rt / maxRt) * 100;
+    return `
+      <div class="slowest-item">
+        <div class="slowest-name truncate" title="${esc(s.name)}">${esc(s.name)}</div>
+        <div class="slowest-rt">${Math.round(s.avg_rt)} ms</div>
+        <div class="slowest-bar-wrap">
+          <div class="slowest-bar" style="width:${pct}%"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 // ── Health cards ──────────────────────────────────────────────────────────
@@ -125,6 +166,7 @@ function renderSitesTable(sites) {
     const checked  = s.last_checked ? timeAgo(s.last_checked) : 'Never';
     const status   = s.status || 'unknown';
     const domain   = (() => { try { return new URL(s.url).hostname; } catch(e) { return s.url; } })();
+    const tags     = (s.tags || '').split(',').map(t => t.trim()).filter(t => t).map(t => `<span class="tag-badge">${esc(t)}</span>`).join('');
 
     // 30 uptime blocks proportional to uptime %
     const filledCount = Math.round(uptime * 30 / 100);
@@ -144,7 +186,10 @@ function renderSitesTable(sites) {
             <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32" onerror="this.style.display='none'" alt="">
           </div>
           <div>
-            <a href="site_details.php?id=${s.id}" class="site-name-link">${esc(s.name)}</a>
+            <div style="display:flex;align-items:center;gap:6px">
+              <a href="site_details.php?id=${s.id}" class="site-name-link">${esc(s.name)}</a>
+              ${tags}
+            </div>
             <div class="site-url-small truncate">${esc(s.url)}</div>
           </div>
         </div>
@@ -462,6 +507,7 @@ async function openSiteModal(id = null) {
       document.getElementById('site-expected').value   = s.expected_status || 200;
       document.getElementById('site-email').value      = s.alert_email || '';
       document.getElementById('site-active').checked   = s.is_active == 1;
+      document.getElementById('site-tags').value       = s.tags || '';
     } catch (err) {
       showToast('Failed to load monitor: ' + err.message, 'error');
       return;
@@ -578,6 +624,7 @@ async function saveSite() {
     expected_status: document.getElementById('site-expected').value || 200,
     alert_email:     document.getElementById('site-email').value,
     is_active:       document.getElementById('site-active').checked ? 1 : 0,
+    tags:            document.getElementById('site-tags').value,
   };
 
   try {

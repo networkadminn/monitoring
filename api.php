@@ -42,7 +42,7 @@ try {
         // All sites with latest status
         case 'sites':
             $sites = Database::fetchAll(
-                'SELECT s.id, s.name, s.url, s.check_type, s.uptime_percentage,
+                'SELECT s.id, s.name, s.url, s.check_type, s.uptime_percentage, s.tags,
                         l.status, l.response_time, l.error_message, l.ssl_expiry_days, l.created_at AS last_checked
                  FROM sites s
                  LEFT JOIN logs l ON l.id = (
@@ -192,7 +192,7 @@ try {
 
 function saveSite(array $d): void {
     $fields = ['name', 'url', 'check_type', 'port', 'hostname', 'keyword',
-               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'is_active'];
+               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'is_active', 'tags'];
 
     $clean = [];
     foreach ($fields as $f) {
@@ -217,7 +217,7 @@ function saveSite(array $d): void {
         $id = (int) $d['id'];
         Database::execute(
             'UPDATE sites SET name=?, url=?, check_type=?, port=?, hostname=?, keyword=?,
-             expected_status=?, alert_email=?, alert_phone=?, alert_telegram=?, is_active=?
+             expected_status=?, alert_email=?, alert_phone=?, alert_telegram=?, is_active=?, tags=?
              WHERE id=?',
             array_merge(array_values($clean), [$id])
         );
@@ -225,8 +225,8 @@ function saveSite(array $d): void {
     } else {
         $id = Database::insert(
             'INSERT INTO sites (name, url, check_type, port, hostname, keyword,
-             expected_status, alert_email, alert_phone, alert_telegram, is_active)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+             expected_status, alert_email, alert_phone, alert_telegram, is_active, tags)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
             array_values($clean)
         );
         jsonOk(['created' => $id, 'message' => 'Monitor added successfully']);
