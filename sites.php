@@ -160,6 +160,17 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
 
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="assets/js/dashboard.js?v=1.0.3"></script>
+<script src="assets/js/dashboard.js?v=1.0.4"></script>
+  <script>
+    console.log('Sites page script block executed');
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('DOMContentLoaded in sites.php');
+      if (document.getElementById('sites-table')) {
+        console.log('sites-table element found');
+      } else {
+        console.warn('sites-table element NOT found!');
+      }
+    });
+  </script>
 </body>
 </html>

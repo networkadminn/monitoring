@@ -305,6 +305,7 @@ function renderSitesTable(sites) {
   // Init DataTable — use scrollX for wide tables
   if (window.jQuery && $.fn.DataTable) {
     const tableEl = $('#sites-table');
+    console.log('Initializing DataTable on #sites-table');
     sitesTable = tableEl.DataTable({
       pageLength: 25,
       stateSave: true,
