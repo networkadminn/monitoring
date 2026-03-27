@@ -1,0 +1,34 @@
+# =============================================================================
+# .htaccess - Protect sensitive files and directories
+# =============================================================================
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Block access to includes directory
+    RewriteRule ^includes/ - [F,L]
+
+    # Block access to vendor directory
+    RewriteRule ^vendor/ - [F,L]
+
+    # Block access to composer files
+    RewriteRule ^composer\.(json|lock)$ - [F,L]
+
+    # Block access to cron runner from web
+    RewriteRule ^cron_runner\.php$ - [F,L]
+</IfModule>
+
+# Block config.php direct access
+<Files "config.php">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Security headers
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>

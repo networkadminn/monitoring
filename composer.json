@@ -1,0 +1,17 @@
+{
+  "name": "yourorg/site-monitor",
+  "description": "Production-ready PHP site monitoring system",
+  "type": "project",
+  "require": {
+    "php": ">=8.0",
+    "phpmailer/phpmailer": "^6.8"
+  },
+  "autoload": {
+    "psr-4": {
+      "Monitor\\": "includes/"
+    }
+  },
+  "config": {
+    "optimize-autoloader": true
+  }
+}

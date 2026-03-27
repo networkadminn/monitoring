@@ -1,0 +1,228 @@
+<?php
+// =============================================================================
+// install.php - Database installer with schema + sample data
+// =============================================================================
+
+define('MONITOR_ROOT', __DIR__);
+require_once MONITOR_ROOT . '/config.php';
+
+$errors   = [];
+$messages = [];
+$done     = false;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install'])) {
+    try {
+        // Connect without selecting a DB first so we can CREATE it
+        $pdo = new PDO(
+            'mysql:host=' . DB_HOST . ';charset=' . DB_CHARSET,
+            DB_USER, DB_PASS,
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+
+        $pdo->exec('CREATE DATABASE IF NOT EXISTS `' . DB_NAME . '` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+        $pdo->exec('USE `' . DB_NAME . '`');
+        $messages[] = 'Database created / verified.';
+
+        // ── Schema ────────────────────────────────────────────────────────────
+        $schema = <<<SQL
+
+CREATE TABLE IF NOT EXISTS sites (
+    id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name             VARCHAR(120)  NOT NULL,
+    url              VARCHAR(500)  NOT NULL,
+    check_type       ENUM('http','ssl','port','dns','keyword') NOT NULL DEFAULT 'http',
+    port             SMALLINT UNSIGNED NULL,
+    hostname         VARCHAR(255)  NULL,
+    keyword          VARCHAR(500)  NULL,
+    expected_status  SMALLINT UNSIGNED NOT NULL DEFAULT 200,
+    alert_email      VARCHAR(255)  NULL,
+    alert_phone      VARCHAR(30)   NULL,
+    alert_telegram   VARCHAR(60)   NULL,
+    is_active        TINYINT(1)    NOT NULL DEFAULT 1,
+    uptime_percentage DECIMAL(5,2) NOT NULL DEFAULT 100.00,
+    created_at       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_active (is_active)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS logs (
+    id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    site_id          INT UNSIGNED    NOT NULL,
+    status           ENUM('up','down','warning') NOT NULL,
+    response_time    DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    error_message    TEXT            NULL,
+    ssl_expiry_days  SMALLINT        NULL,
+    created_at       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_site_created (site_id, created_at),
+    INDEX idx_created (created_at),
+    FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS alert_log (
+    id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    site_id          INT UNSIGNED    NOT NULL,
+    alert_type       VARCHAR(30)     NOT NULL,
+    sent_at          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_site_type (site_id, alert_type),
+    FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS daily_uptime (
+    id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    site_id          INT UNSIGNED    NOT NULL,
+    date             DATE            NOT NULL,
+    uptime_percentage DECIMAL(5,2)   NOT NULL DEFAULT 100.00,
+    total_checks     INT UNSIGNED    NOT NULL DEFAULT 0,
+    failed_checks    INT UNSIGNED    NOT NULL DEFAULT 0,
+    avg_response_time DECIMAL(10,2)  NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_site_date (site_id, date),
+    INDEX idx_date (date),
+    FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS hourly_stats (
+    id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    site_id          INT UNSIGNED    NOT NULL,
+    hour             DATETIME        NOT NULL,
+    avg_response_time DECIMAL(10,2)  NOT NULL DEFAULT 0,
+    min_response_time DECIMAL(10,2)  NOT NULL DEFAULT 0,
+    max_response_time DECIMAL(10,2)  NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_site_hour (site_id, hour),
+    INDEX idx_hour (hour),
+    FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS incident_log (
+    id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    site_id          INT UNSIGNED    NOT NULL,
+    started_at       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at         TIMESTAMP       NULL,
+    duration_seconds INT UNSIGNED    NULL,
+    error_message    TEXT            NULL,
+    INDEX idx_site_started (site_id, started_at),
+    FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+SQL;
+
+        foreach (array_filter(array_map('trim', explode(';', $schema))) as $stmt) {
+            $pdo->exec($stmt);
+        }
+        $messages[] = 'All tables created.';
+
+        // ── Sample data ───────────────────────────────────────────────────────
+        if (isset($_POST['sample_data'])) {
+            $samples = [
+                ['Google',       'https://www.google.com',       'http',    null, null,          null,      200, 'ops@example.com', null, null],
+                ['GitHub',       'https://github.com',           'http',    null, null,          null,      200, 'ops@example.com', null, null],
+                ['Google SSL',   'https://www.google.com',       'ssl',     443,  'www.google.com', null,   200, 'ops@example.com', null, null],
+                ['DNS Check',    'https://cloudflare.com',       'dns',     null, 'cloudflare.com', null,   200, 'ops@example.com', null, null],
+                ['Keyword Test', 'https://example.com',          'keyword', null, null,          'Example', 200, 'ops@example.com', null, null],
+            ];
+
+            $ins = $pdo->prepare(
+                'INSERT IGNORE INTO sites (name, url, check_type, port, hostname, keyword, expected_status, alert_email, alert_phone, alert_telegram)
+                 VALUES (?,?,?,?,?,?,?,?,?,?)'
+            );
+            foreach ($samples as $s) $ins->execute($s);
+
+            // Seed some log data for charts
+            $siteRows = $pdo->query('SELECT id FROM sites LIMIT 5')->fetchAll(PDO::FETCH_COLUMN);
+            $logIns   = $pdo->prepare(
+                'INSERT INTO logs (site_id, status, response_time, created_at) VALUES (?,?,?,?)'
+            );
+            foreach ($siteRows as $sid) {
+                for ($i = 0; $i < 200; $i++) {
+                    $ts  = date('Y-m-d H:i:s', strtotime("-$i minutes"));
+                    $rt  = rand(50, 800);
+                    $st  = $rt > 700 ? 'down' : 'up';
+                    $logIns->execute([$sid, $st, $rt, $ts]);
+                }
+            }
+            $messages[] = 'Sample data inserted.';
+        }
+
+        $done = true;
+
+    } catch (PDOException $e) {
+        $errors[] = 'Database error: ' . $e->getMessage();
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Install — Site Monitor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/dashboard.css">
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    .install-box { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:40px; width:480px; max-width:95vw; }
+    .install-box h1 { font-size:22px; margin-bottom:8px; }
+    .install-box p  { color:var(--muted); margin-bottom:24px; }
+    .msg { padding:10px 14px; border-radius:6px; margin-bottom:10px; font-size:13px; }
+    .msg.ok  { background:rgba(34,197,94,.15); color:#22c55e; }
+    .msg.err { background:rgba(239,68,68,.15);  color:#ef4444; }
+    .check-row { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  </style>
+</head>
+<body>
+<div class="install-box">
+  <h1>🚀 Site Monitor Installer</h1>
+  <p>This will create the database schema and optionally insert sample data.</p>
+
+  <?php foreach ($messages as $m): ?>
+    <div class="msg ok">✓ <?= htmlspecialchars($m) ?></div>
+  <?php endforeach; ?>
+  <?php foreach ($errors as $e): ?>
+    <div class="msg err">✗ <?= htmlspecialchars($e) ?></div>
+  <?php endforeach; ?>
+
+  <?php if ($done): ?>
+    <div class="msg ok">✓ Installation complete!</div>
+    <a href="index.php" class="btn btn-primary" style="display:block;text-align:center;margin-top:16px">Go to Dashboard →</a>
+    <p style="margin-top:16px;font-size:12px;color:var(--muted)">
+      ⚠️ Delete or protect install.php after setup.
+    </p>
+  <?php else: ?>
+    <!-- Pre-flight checks -->
+    <div style="margin-bottom:20px">
+      <?php
+      $checks = [
+          'PHP >= 8.0'       => version_compare(PHP_VERSION, '8.0', '>='),
+          'PDO MySQL'        => extension_loaded('pdo_mysql'),
+          'cURL'             => extension_loaded('curl'),
+          'OpenSSL'          => extension_loaded('openssl'),
+          'config.php exists'=> file_exists(MONITOR_ROOT . '/config.php'),
+      ];
+      foreach ($checks as $label => $ok): ?>
+        <div class="check-row">
+          <span style="color:<?= $ok ? 'var(--green)' : 'var(--red)' ?>"><?= $ok ? '✓' : '✗' ?></span>
+          <span><?= htmlspecialchars($label) ?></span>
+          <?php if (!$ok): ?><span class="text-red" style="font-size:12px">Required</span><?php endif; ?>
+        </div>
+      <?php endforeach; ?>
+    </div>
+
+    <form method="POST">
+      <div class="form-group">
+        <label>Database Host</label>
+        <input class="form-control" value="<?= htmlspecialchars(DB_HOST) ?>" disabled>
+      </div>
+      <div class="form-group">
+        <label>Database Name</label>
+        <input class="form-control" value="<?= htmlspecialchars(DB_NAME) ?>" disabled>
+      </div>
+      <div class="check-row" style="margin-bottom:20px">
+        <input type="checkbox" name="sample_data" id="sample_data" checked style="width:16px;height:16px">
+        <label for="sample_data">Insert sample sites and log data</label>
+      </div>
+      <button type="submit" name="install" value="1" class="btn btn-primary" style="width:100%">
+        Run Installation
+      </button>
+    </form>
+  <?php endif; ?>
+</div>
+</body>
+</html>
