@@ -247,36 +247,6 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
         </div>
       </div>
 
-      <!-- Sites table -->
-      <div class="table-panel">
-        <div class="table-panel-header">
-          <div class="table-panel-title">All Monitors</div>
-          <div class="table-panel-actions">
-            <span class="text-muted" style="font-size:12px" id="sites-count"></span>
-          </div>
-        </div>
-        <div class="loading-overlay" id="sites-loading-overlay">
-          <div class="spinner" style="width:32px;height:32px"></div>
-        </div>
-        <div class="table-wrap">
-          <table id="sites-table">
-            <thead>
-              <tr>
-                <th style="width:36px"><input type="checkbox" id="select-all-sites" title="Select all" style="cursor:pointer"></th>
-                <th>Monitor</th>
-                <th>Status</th>
-                <th>Response</th>
-                <th>Uptime (30d)</th>
-                <th>Last 30 Days</th>
-                <th>Last Check</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="sites-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-
       <!-- Recent incidents -->
       <div class="table-panel">
         <div class="table-panel-header">
