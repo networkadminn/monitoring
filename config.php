@@ -29,7 +29,7 @@ define('DASHBOARD_USER', 'admin');
 define('DASHBOARD_PASS', 'changeme');
 
 // App base URL (no trailing slash)
-define('APP_URL', 'https://monitoring.euclideesolutions.com/');
+define('APP_URL', 'https://monitoring.euclideesolutions.com');
 
 // Timezone
 date_default_timezone_set('UTC');
