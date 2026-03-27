@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Topbar buttons
   document.getElementById('btn-add-site')?.addEventListener('click', () => openSiteModal());
   document.getElementById('btn-refresh')?.addEventListener('click', loadDashboard);
+  document.getElementById('btn-run-cron')?.addEventListener('click', runManualCheck);
   document.getElementById('btn-bulk-delete')?.addEventListener('click', bulkDeleteSites);
 
   // Modal save/cancel
@@ -214,6 +215,17 @@ function renderSitesTable(sites) {
     const status   = s.status || 'unknown';
     const domain   = (() => { try { return new URL(s.url).hostname; } catch(e) { return s.url; } })();
     const tags     = (s.tags || '').split(',').map(t => t.trim()).filter(t => t).map(t => `<span class="tag-badge">${esc(t)}</span>`).join('');
+    const error    = s.status === 'down' ? `<div class="text-red" style="font-size:11px;margin-top:4px">${esc(s.error_message)}</div>` : '';
+    
+    // SSL Badge
+    let sslBadge = '';
+    if (s.ssl_expiry_days !== null) {
+      const sslCls = s.ssl_expiry_days <= 7 ? 'red' : s.ssl_expiry_days <= 30 ? 'yellow' : 'green';
+      sslBadge = `<div style="font-size:10px;margin-top:4px;color:var(--${sslCls})">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="vertical-align:middle;margin-right:2px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        ${s.ssl_expiry_days}d left
+      </div>`;
+    }
 
     // 30 uptime blocks proportional to uptime %
     const filledCount = Math.round(uptime * 30 / 100);
@@ -241,7 +253,11 @@ function renderSitesTable(sites) {
           </div>
         </div>
       </td>
-      <td><span class="badge ${status}"><span class="badge-dot"></span>${status}</span></td>
+      <td>
+        <span class="badge ${status}"><span class="badge-dot"></span>${status}</span>
+        ${error}
+        ${sslBadge}
+      </td>
       <td style="font-weight:500">${rt}</td>
       <td>
         <div class="uptime-cell">
@@ -384,6 +400,7 @@ function renderIncidentsTable(incidents) {
 
 // ── Response time trend (multi-site line chart) ───────────────────────────
 async function renderResponseTrendChart(sites) {
+  if (!sites || !sites.length) return;
   const ids = sites.slice(0, 8).map(s => s.id).join(',');
   if (!ids) return;
 
@@ -846,6 +863,33 @@ function bulkDeleteSites() {
       loadDashboard();
     }
   });
+}
+
+async function runManualCheck() {
+  const btn = document.getElementById('btn-run-cron');
+  if (!btn) return;
+
+  const origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Running…';
+  showToast('Manual check started. This may take a minute...', 'info');
+
+  try {
+    const res = await apiPost('run_cron', {});
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+    
+    if (res.success) {
+      showToast('All monitors checked successfully', 'success');
+    } else {
+      showToast('Check completed with some issues', 'warning');
+    }
+    loadDashboard();
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+    showToast('Check failed: ' + err.message, 'error');
+  }
 }
 
 // ── API helpers ───────────────────────────────────────────────────────────

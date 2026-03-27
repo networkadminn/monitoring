@@ -56,7 +56,7 @@ class Statistics {
     }
 
     // -------------------------------------------------------------------------
-    // SSL expiry info for all SSL-type sites
+    // SSL expiry info for all sites with SSL data
     // -------------------------------------------------------------------------
     public static function getSSLExpiryInfo(): array {
         return Database::fetchAll(
@@ -67,7 +67,7 @@ class Statistics {
              JOIN logs l ON l.id = (
                  SELECT id FROM logs WHERE site_id = s.id ORDER BY created_at DESC LIMIT 1
              )
-             WHERE s.check_type = "ssl" AND s.is_active = 1
+             WHERE l.ssl_expiry_days IS NOT NULL AND s.is_active = 1
              ORDER BY l.ssl_expiry_days ASC'
         );
     }

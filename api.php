@@ -184,6 +184,15 @@ try {
             jsonOk(['deleted' => $deleted]);
             break;
 
+        // Run cron manually
+        case 'run_cron':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            $output = [];
+            $retval = 0;
+            exec('php cron_runner.php 2>&1', $output, $retval);
+            jsonOk(['output' => $output, 'success' => ($retval === 0)]);
+            break;
+
         default:
             jsonError('Unknown action', 400);
     }

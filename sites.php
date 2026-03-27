@@ -101,6 +101,10 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           Refresh
         </button>
+        <button class="btn btn-ghost btn-sm" id="btn-run-cron">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Run Check
+        </button>
         <button class="btn btn-danger btn-sm" id="btn-bulk-delete" style="display:none">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
           Delete Selected (<span id="bulk-count">0</span>)
