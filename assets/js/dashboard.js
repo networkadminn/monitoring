@@ -628,7 +628,7 @@ async function saveSite() {
   };
 
   try {
-    const result = await apiPost('save_site', data);
+    const result = await apiPost(isEdit ? 'update_site' : 'add_site', data);
     closeModal();
     showToast(result.message || (isEdit ? 'Monitor updated successfully' : 'Monitor added successfully'), 'success');
     

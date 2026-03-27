@@ -125,10 +125,16 @@ try {
             break;
 
         // Save / update a site
-        case 'save_site':
+        case 'add_site':
             if ($method !== 'POST') jsonError('POST required', 405);
             $data = json_decode(file_get_contents('php://input'), true);
-            saveSite($data);
+            addSite($data);
+            break;
+
+        case 'update_site':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            $data = json_decode(file_get_contents('php://input'), true);
+            updateSite($data);
             break;
 
         // Delete a site
@@ -190,7 +196,7 @@ try {
 // Helpers
 // =============================================================================
 
-function saveSite(array $d): void {
+function addSite(array $d): void {
     $fields = ['name', 'url', 'check_type', 'port', 'hostname', 'keyword',
                'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'is_active', 'tags'];
 
@@ -199,11 +205,9 @@ function saveSite(array $d): void {
         $clean[$f] = isset($d[$f]) ? trim((string) $d[$f]) : null;
     }
 
-    // Basic validation
     if (empty($clean['name'])) jsonError('Name is required');
     if (empty($clean['url'])) jsonError('URL is required');
 
-    // More URL validation based on check type
     if (in_array($clean['check_type'], ['http', 'keyword', 'ssl'])) {
         if (!filter_var($clean['url'], FILTER_VALIDATE_URL)) {
             jsonError('Invalid URL format');
@@ -213,24 +217,40 @@ function saveSite(array $d): void {
     $clean['is_active']       = isset($d['is_active']) ? (int) $d['is_active'] : 1;
     $clean['expected_status'] = (int) ($d['expected_status'] ?? 200);
 
-    if (!empty($d['id'])) {
-        $id = (int) $d['id'];
-        Database::execute(
-            'UPDATE sites SET name=?, url=?, check_type=?, port=?, hostname=?, keyword=?,
-             expected_status=?, alert_email=?, alert_phone=?, alert_telegram=?, is_active=?, tags=?
-             WHERE id=?',
-            array_merge(array_values($clean), [$id])
-        );
-        jsonOk(['updated' => $id, 'message' => 'Monitor updated successfully']);
-    } else {
-        $id = Database::insert(
-            'INSERT INTO sites (name, url, check_type, port, hostname, keyword,
-             expected_status, alert_email, alert_phone, alert_telegram, is_active, tags)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-            array_values($clean)
-        );
-        jsonOk(['created' => $id, 'message' => 'Monitor added successfully']);
+    $id = Database::insert(
+        'INSERT INTO sites (name, url, check_type, port, hostname, keyword,
+            expected_status, alert_email, alert_phone, alert_telegram, is_active, tags)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        array_values($clean)
+    );
+    jsonOk(['created' => $id, 'message' => 'Monitor added successfully']);
+}
+
+function updateSite(array $d): void {
+    if (empty($d['id'])) jsonError('Missing ID');
+    $id = (int) $d['id'];
+
+    $fields = ['name', 'url', 'check_type', 'port', 'hostname', 'keyword',
+               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'is_active', 'tags'];
+
+    $clean = [];
+    foreach ($fields as $f) {
+        $clean[$f] = isset($d[$f]) ? trim((string) $d[$f]) : null;
     }
+
+    if (empty($clean['name'])) jsonError('Name is required');
+    if (empty($clean['url'])) jsonError('URL is required');
+
+    $clean['is_active']       = isset($d['is_active']) ? (int) $d['is_active'] : 1;
+    $clean['expected_status'] = (int) ($d['expected_status'] ?? 200);
+
+    Database::execute(
+        'UPDATE sites SET name=?, url=?, check_type=?, port=?, hostname=?, keyword=?,
+            expected_status=?, alert_email=?, alert_phone=?, alert_telegram=?, is_active=?, tags=?
+            WHERE id=?',
+        array_merge(array_values($clean), [$id])
+    );
+    jsonOk(['updated' => $id, 'message' => 'Monitor updated successfully']);
 }
 
 function jsonOk(mixed $data): never {

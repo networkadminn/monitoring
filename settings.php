@@ -38,12 +38,16 @@ $diskFree    = function_exists('disk_free_space') ? round(disk_free_space('/') /
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
       </svg>
-      <span>Monitor</span>
+      <div class="sidebar-logo-text">Site<span>Monitor</span></div>
     </div>
     <nav>
       <a class="nav-item" href="index.php">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         <span>Dashboard</span>
+      </a>
+      <a class="nav-item" href="sites.php">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        <span>Monitors</span>
       </a>
       <a class="nav-item active" href="settings.php">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
@@ -51,8 +55,16 @@ $diskFree    = function_exists('disk_free_space') ? round(disk_free_space('/') /
       </a>
     </nav>
     <div class="sidebar-footer">
-      <span class="sidebar-user"><?= htmlspecialchars($_SESSION['user'] ?? 'admin') ?></span>
-      <a href="logout.php" class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%;text-align:center">Sign Out</a>
+      <div class="sidebar-avatar"><?= strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1)) ?></div>
+      <div class="sidebar-user-info">
+        <div class="sidebar-user-name"><?= htmlspecialchars($_SESSION['user'] ?? 'Admin') ?></div>
+        <div class="sidebar-user-role">Administrator</div>
+      </div>
+      <a href="logout.php" class="sidebar-logout" title="Sign out">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </a>
     </div>
   </aside>
 
