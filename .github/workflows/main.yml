@@ -1,0 +1,50 @@
+# Create the workflows directory
+mkdir -p .github/workflows
+
+# Create the deployment workflow
+cat > .github/workflows/deploy.yml << 'EOF'
+name: Deploy to Production Server
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh/
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Server
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            cd /home/euclideesolution/monitoring.euclideesolutions.com
+            echo "🔄 Pulling latest changes..."
+            git pull origin main
+            echo "📦 Installing/updating dependencies..."
+            composer install --no-dev --optimize-autoloader 2>/dev/null || true
+            echo "🔧 Setting file permissions..."
+            chmod 644 config.php
+            chmod 755 index.php cron_runner.php
+            echo "🗄️ Running database migrations..."
+            php install.php
+            echo "🔄 Reloading PHP-FPM..."
+            sudo systemctl reload php8.1-fpm 2>/dev/null || sudo service php8.1-fpm reload 2>/dev/null || true
+            echo "✅ Deployment complete!"
+          EOF
+
+      - name: Verify Deployment
+        run: |
+          echo "🔍 Checking if site is accessible..."
+          curl -s -o /dev/null -w "%{http_code}\n" https://monitoring.euclideesolutions.com/
+EOF
