@@ -112,15 +112,21 @@ async function loadDashboard() {
         
         if (filterType) {
           const navMap = { websites: 'nav-websites', ssl: 'nav-ssl', ports: 'nav-ports' };
-          document.getElementById(navMap[filterType])?.classList.add('active');
+          const activeNav = document.getElementById(navMap[filterType]);
+          if (activeNav) {
+            activeNav.classList.add('active');
+          }
 
           sites = sites.filter(s => {
-            if (filterType === 'websites') return ['http', 'keyword'].includes(s.check_type);
+            if (filterType === 'websites') return ['http', 'keyword', 'ssl'].includes(s.check_type);
             if (filterType === 'ssl') return s.ssl_expiry_days !== null;
             if (filterType === 'ports') return s.check_type === 'port';
             return true;
           });
         }
+      } else {
+        // Highlight "All Monitors" if no filters
+        document.getElementById('nav-all')?.classList.add('active');
       }
 
       sitesData = sites;
@@ -288,6 +294,7 @@ function renderSitesTable(sites) {
     sitesTable = $('#sites-table').DataTable({
       pageLength: 25,
       stateSave: true, // Remember page, search, etc.
+      stateDuration: 60 * 60 * 24, // 24 hours
       order: [[2, 'asc']],
       columnDefs: [{ orderable: false, targets: [0, 5, 7] }],
       language: { search: 'Filter:', lengthMenu: 'Show _MENU_ monitors' },
@@ -928,22 +935,34 @@ async function runManualCheck() {
 
 // ── API helpers ───────────────────────────────────────────────────────────
 async function apiFetch(action) {
-  const res  = await fetch(`${API}?action=${action}`);
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'API error');
-  return json.data;
+  try {
+    const res  = await fetch(`${API}?action=${action}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'API error');
+    return json.data;
+  } catch (err) {
+    console.error(`apiFetch failed for action "${action}":`, err);
+    throw err;
+  }
 }
 
 async function apiPost(action, body) {
-  const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
-  const res  = await fetch(`${API}?action=${action}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-    body: JSON.stringify(body),
-  });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'API error');
-  return json.data;
+  try {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const res  = await fetch(`${API}?action=${action}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'API error');
+    return json.data;
+  } catch (err) {
+    console.error(`apiPost failed for action "${action}":`, err);
+    throw err;
+  }
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────
