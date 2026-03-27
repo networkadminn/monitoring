@@ -201,49 +201,45 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
         <div class="chart-panel">
           <div class="chart-header">
             <div>
+              <div class="chart-title">System Uptime Trend</div>
+              <div class="chart-subtitle">Aggregate average last 30 days</div>
+            </div>
+          </div>
+          <canvas id="chart-uptime"></canvas>
+        </div>
+        <div class="chart-panel">
+          <div class="chart-header">
+            <div>
               <div class="chart-title">SSL Certificate Expiry</div>
               <div class="chart-subtitle">Days remaining per site</div>
             </div>
           </div>
           <canvas id="chart-ssl"></canvas>
         </div>
-        <div class="chart-panel">
-          <div class="chart-header">
-            <div>
-              <div class="chart-title">Status by Type</div>
-              <div class="chart-subtitle">Distribution of check types</div>
-            </div>
-          </div>
-          <div style="max-height:240px;display:flex;justify-content:center">
-            <canvas id="chart-status-types"></canvas>
-          </div>
-        </div>
       </div>
 
-      <!-- Histogram + Gauge + Slowest -->
+      <!-- Distribution + Types + Slowest -->
       <div class="charts-grid" style="grid-template-columns: 1fr 1fr 1fr">
         <div class="chart-panel">
           <div class="chart-header">
             <div>
-              <div class="chart-title">Response Time Distribution</div>
-              <div class="chart-subtitle">Last 100 checks</div>
+              <div class="chart-title">Status by Type</div>
+              <div class="chart-subtitle">Check type distribution</div>
             </div>
           </div>
-          <canvas id="chart-histogram"></canvas>
+          <div style="max-height:200px;display:flex;justify-content:center">
+            <canvas id="chart-status-types"></canvas>
+          </div>
         </div>
 
         <div class="chart-panel">
           <div class="chart-header">
             <div>
-              <div class="chart-title">System Health Score</div>
-              <div class="chart-subtitle">Overall platform health</div>
+              <div class="chart-title">Response Distribution</div>
+              <div class="chart-subtitle">Last 100 checks</div>
             </div>
           </div>
-          <div class="gauge-wrap">
-            <canvas id="chart-gauge" style="max-height:160px;max-width:160px"></canvas>
-            <div class="gauge-score" id="gauge-score"><?= $health['health_score'] ?>%</div>
-            <div class="gauge-label">Overall Health</div>
-          </div>
+          <canvas id="chart-histogram"></canvas>
         </div>
 
         <div class="chart-panel">

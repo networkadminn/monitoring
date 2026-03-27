@@ -73,6 +73,20 @@ class Statistics {
     }
 
     // -------------------------------------------------------------------------
+    // System-wide uptime trend (aggregate of all sites)
+    // -------------------------------------------------------------------------
+    public static function getSystemUptimeTrend(int $days = 30): array {
+        return Database::fetchAll(
+            'SELECT date, ROUND(AVG(uptime_percentage), 2) AS uptime_percentage
+             FROM daily_uptime
+             WHERE date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+             GROUP BY date
+             ORDER BY date ASC',
+            [$days]
+        );
+    }
+
+    // -------------------------------------------------------------------------
     // Overall system health score (0-100)
     // -------------------------------------------------------------------------
     public static function getSystemHealth(): array {

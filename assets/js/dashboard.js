@@ -82,12 +82,13 @@ async function loadDashboard() {
     const isSitesPage = document.getElementById('sites-table') !== null;
 
     if (isDashboard) {
-      const [health, sites, incidents, ssl, slowest] = await Promise.all([
+      const [health, sites, incidents, ssl, slowest, systemUptime] = await Promise.all([
         apiFetch('health'),
         apiFetch('sites'),
         apiFetch('incidents'),
         apiFetch('ssl_expiry'),
         apiFetch('slowest'),
+        apiFetch('system_uptime'),
       ]);
 
       sitesData = sites;
@@ -95,6 +96,7 @@ async function loadDashboard() {
       renderIncidentsTable(incidents);
       renderSSLChart(ssl);
       renderStatusTypesChart(sites);
+      renderSystemUptimeChart(systemUptime);
       renderResponseTrendChart(sites);
       renderHistogramChart(sites);
       renderGauge(health.health_score);
@@ -114,7 +116,7 @@ async function loadDashboard() {
 
           sites = sites.filter(s => {
             if (filterType === 'websites') return ['http', 'keyword'].includes(s.check_type);
-            if (filterType === 'ssl') return s.check_type === 'ssl';
+            if (filterType === 'ssl') return s.ssl_expiry_days !== null;
             if (filterType === 'ports') return s.check_type === 'port';
             return true;
           });
@@ -523,6 +525,38 @@ function renderStatusTypesChart(sites) {
       },
       cutout: '60%'
     }
+  });
+}
+
+// ── System-wide uptime trend ──────────────────────────────────────────────
+function renderSystemUptimeChart(data) {
+  const ctx = document.getElementById('chart-uptime');
+  if (!ctx || !data.length) return;
+
+  destroyChart('uptime');
+  charts['uptime'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map(d => d.date),
+      datasets: [{
+        label: 'System Uptime %',
+        data: data.map(d => d.uptime_percentage),
+        borderColor: '#22c55e',
+        backgroundColor: 'rgba(34,197,94,0.1)',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { min: 0, max: 100, ticks: { stepSize: 20 }, grid: { color: 'rgba(255,255,255,0.03)' } },
+        x: { grid: { display: false } }
+      },
+    },
   });
 }
 

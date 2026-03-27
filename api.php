@@ -71,6 +71,11 @@ try {
             jsonOk(Statistics::getSSLExpiryInfo());
             break;
 
+        // Global system uptime trend
+        case 'system_uptime':
+            jsonOk(Statistics::getSystemUptimeTrend(30));
+            break;
+
         // 30-day uptime area chart
         case 'uptime_chart':
             $id = (int) ($_GET['id'] ?? 0);
