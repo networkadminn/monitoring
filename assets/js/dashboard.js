@@ -76,7 +76,11 @@ async function loadDashboard() {
   const filterTag  = params.get('tag');
 
   try {
-    if (page === 'index.php' || page === '' || page === 'dashboard.php') {
+    // Robust page detection
+    const isDashboard = document.getElementById('chart-gauge') !== null;
+    const isSitesPage = document.getElementById('sites-table') !== null;
+
+    if (isDashboard) {
       const [health, sites, incidents, ssl, slowest] = await Promise.all([
         apiFetch('health'),
         apiFetch('sites'),
@@ -90,29 +94,30 @@ async function loadDashboard() {
       renderIncidentsTable(incidents);
       renderSSLChart(ssl);
       renderStatusTypesChart(sites);
-      renderUptimeChart(sites);
       renderResponseTrendChart(sites);
       renderHistogramChart(sites);
       renderGauge(health.health_score);
       renderSlowestList(slowest);
-    } else if (page === 'sites.php') {
+    } 
+    
+    if (isSitesPage) {
       let sites = await apiFetch('sites');
       
-      // Apply URL-based filtering
-      if (filterType) {
+      // Apply URL-based filtering and sidebar highlighting
+      if (filterType || filterTag) {
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        const navMap = { websites: 'nav-websites', ssl: 'nav-ssl', ports: 'nav-ports' };
-        document.getElementById(navMap[filterType])?.classList.add('active');
+        
+        if (filterType) {
+          const navMap = { websites: 'nav-websites', ssl: 'nav-ssl', ports: 'nav-ports' };
+          document.getElementById(navMap[filterType])?.classList.add('active');
 
-        sites = sites.filter(s => {
-          if (filterType === 'websites') return ['http', 'keyword'].includes(s.check_type);
-          if (filterType === 'ssl') return s.check_type === 'ssl';
-          if (filterType === 'ports') return s.check_type === 'port';
-          return true;
-        });
-      }
-      if (filterTag) {
-        sites = sites.filter(s => s.tags && s.tags.toLowerCase().includes(filterTag.toLowerCase()));
+          sites = sites.filter(s => {
+            if (filterType === 'websites') return ['http', 'keyword'].includes(s.check_type);
+            if (filterType === 'ssl') return s.check_type === 'ssl';
+            if (filterType === 'ports') return s.check_type === 'port';
+            return true;
+          });
+        }
       }
 
       sitesData = sites;
@@ -121,7 +126,8 @@ async function loadDashboard() {
 
     updateLastUpdated();
   } catch (err) {
-    showToast('Failed to load dashboard: ' + err.message, 'error');
+    console.error('Load error:', err);
+    showToast('Failed to load data: ' + err.message, 'error');
   } finally {
     if (overlay) overlay.classList.remove('active');
   }
