@@ -18,6 +18,7 @@ let refreshTimer = null;
 
 // ── Init ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  initCheckboxDelegation();
   loadDashboard();
   refreshTimer = setInterval(loadDashboard, 60000);
 
@@ -42,13 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Tabs in modal
   document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      const pane = tab.dataset.tab;
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-      tab.classList.add('active');
-      document.getElementById('tab-' + pane)?.classList.add('active');
-    });
+    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
 });
 
@@ -110,7 +105,7 @@ function renderSitesTable(sites) {
   if (!tbody) return;
 
   if (!sites.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-muted" style="text-align:center;padding:40px">
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">
       No monitors configured yet. Click "Add Monitor" to get started.
     </td></tr>`;
     return;
@@ -124,19 +119,19 @@ function renderSitesTable(sites) {
     const status   = s.status || 'unknown';
     const domain   = (() => { try { return new URL(s.url).hostname; } catch(e) { return s.url; } })();
 
-    // 30 uptime blocks (simplified — colour by overall uptime)
-    const blocks = Array.from({length: 30}, (_, i) => {
-      const cls = uptime >= 99 ? 'up' : uptime >= 90 ? 'partial' : uptime >= 50 ? 'partial' : 'down';
-      return `<div class="uptime-block ${i < Math.round(uptime * 30 / 100) ? cls : 'empty'}" title="Day ${i+1}"></div>`;
-    }).join('');
+    // 30 uptime blocks proportional to uptime %
+    const filledCount = Math.round(uptime * 30 / 100);
+    const blockCls    = uptime >= 99 ? 'up' : uptime >= 90 ? 'partial' : 'down';
+    const blocks = Array.from({length: 30}, (_, i) =>
+      `<div class="uptime-block ${i < filledCount ? blockCls : 'empty'}" title="Day ${i+1}"></div>`
+    ).join('');
 
     return `<tr>
       <td><input type="checkbox" class="site-checkbox" data-id="${s.id}" data-name="${esc(s.name)}" style="cursor:pointer"></td>
       <td>
         <div class="site-name-cell">
           <div class="site-favicon">
-            <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32"
-                 onerror="this.style.display='none'" alt="">
+            <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32" onerror="this.style.display='none'" alt="">
           </div>
           <div>
             <a href="site_details.php?id=${s.id}" class="site-name-link">${esc(s.name)}</a>
@@ -156,11 +151,11 @@ function renderSitesTable(sites) {
       <td class="text-muted" style="font-size:12px">${checked}</td>
       <td>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" onclick="openSiteModal(${s.id})" title="Edit">
+          <button class="btn btn-ghost btn-sm" onclick="openSiteModal(${s.id})">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Edit
           </button>
-          <button class="btn btn-danger btn-sm" onclick="confirmDeleteSite(${s.id}, '${esc(s.name)}')" title="Delete">
+          <button class="btn btn-danger btn-sm" onclick="confirmDeleteSite(${s.id}, '${esc(s.name)}')">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
           </button>
         </div>
@@ -168,54 +163,58 @@ function renderSitesTable(sites) {
     </tr>`;
   }).join('');
 
-  // Init DataTable fresh
+  // Init DataTable — use scrollX for wide tables
   if (window.jQuery && $.fn.DataTable) {
     sitesTable = $('#sites-table').DataTable({
       pageLength: 25,
-      order: [[2, 'asc']], // sort by status
+      order: [[2, 'asc']],
       columnDefs: [{ orderable: false, targets: [0, 5, 7] }],
       language: { search: 'Filter:', lengthMenu: 'Show _MENU_ monitors' },
+      drawCallback: function() {
+        // Re-bind checkboxes after every DataTable redraw (pagination, search, etc.)
+        bindCheckboxEvents();
+      },
     });
+  } else {
+    bindCheckboxEvents();
   }
-
-  bindCheckboxEvents();
 
   const countEl = document.getElementById('sites-count');
   if (countEl) countEl.textContent = sites.length + ' monitor' + (sites.length !== 1 ? 's' : '');
 }
 
 // ── Checkbox / bulk-delete wiring ─────────────────────────────────────────
-function bindCheckboxEvents() {
-  const selectAll = document.getElementById('select-all-sites');
-  const bulkBtn   = document.getElementById('btn-bulk-delete');
-  const bulkCount = document.getElementById('bulk-count');
-
-  function updateBulkBtn() {
-    const n = document.querySelectorAll('.site-checkbox:checked').length;
-    if (bulkBtn)   bulkBtn.style.display = n > 0 ? '' : 'none';
-    if (bulkCount) bulkCount.textContent = n;
-  }
-
-  if (selectAll) {
-    selectAll.checked = false;
-    // Clone to remove old listeners
-    const fresh = selectAll.cloneNode(true);
-    selectAll.parentNode.replaceChild(fresh, selectAll);
-    fresh.addEventListener('change', () => {
-      document.querySelectorAll('.site-checkbox').forEach(cb => cb.checked = fresh.checked);
+// Called once on init — uses event delegation so it survives DataTable redraws
+function initCheckboxDelegation() {
+  // Select-all: delegated on document since DataTables moves thead
+  document.addEventListener('change', (e) => {
+    if (e.target.id === 'select-all-sites') {
+      document.querySelectorAll('.site-checkbox').forEach(cb => cb.checked = e.target.checked);
       updateBulkBtn();
-    });
-  }
-
-  document.querySelectorAll('.site-checkbox').forEach(cb => {
-    cb.addEventListener('change', () => {
+    }
+    if (e.target.classList.contains('site-checkbox')) {
       const all  = document.querySelectorAll('.site-checkbox').length;
       const done = document.querySelectorAll('.site-checkbox:checked').length;
       const sa   = document.getElementById('select-all-sites');
-      if (sa) sa.checked = all === done && all > 0;
+      if (sa) sa.checked = all > 0 && all === done;
       updateBulkBtn();
-    });
+    }
   });
+}
+
+function bindCheckboxEvents() {
+  // Reset select-all state on each render
+  const sa = document.getElementById('select-all-sites');
+  if (sa) sa.checked = false;
+  updateBulkBtn();
+}
+
+function updateBulkBtn() {
+  const n       = document.querySelectorAll('.site-checkbox:checked').length;
+  const bulkBtn = document.getElementById('btn-bulk-delete');
+  const count   = document.getElementById('bulk-count');
+  if (bulkBtn)  bulkBtn.style.display = n > 0 ? '' : 'none';
+  if (count)    count.textContent = n;
 }
 
 // ── Incidents table ───────────────────────────────────────────────────────
@@ -223,14 +222,21 @@ function renderIncidentsTable(incidents) {
   const tbody = document.getElementById('incidents-tbody');
   if (!tbody) return;
 
+  if (!incidents.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--muted)">No incidents recorded</td></tr>`;
+    return;
+  }
+
   tbody.innerHTML = incidents.map(i => {
-    const dur = i.duration_seconds ? formatDuration(i.duration_seconds) : '<span class="text-red">Ongoing</span>';
+    const dur = i.duration_seconds
+      ? formatDuration(i.duration_seconds)
+      : '<span class="text-red">Ongoing</span>';
     return `<tr>
-      <td>${esc(i.site_name || '')}</td>
+      <td><a href="site_details.php?id=${i.site_id || ''}" class="site-name-link">${esc(i.site_name || '')}</a></td>
       <td>${formatDate(i.started_at)}</td>
       <td>${i.ended_at ? formatDate(i.ended_at) : '—'}</td>
       <td>${dur}</td>
-      <td class="text-muted">${esc(i.error_message || '')}</td>
+      <td class="text-muted" style="font-size:12px">${esc(i.error_message || '')}</td>
     </tr>`;
   }).join('');
 }
@@ -408,22 +414,18 @@ function renderGauge(score) {
 async function openSiteModal(id = null) {
   const modal = document.getElementById('modal-overlay');
   const title = document.getElementById('modal-title');
+  const saveBtn = document.getElementById('modal-save');
 
   // Reset form + errors
   document.getElementById('site-form').reset();
   document.getElementById('site-id').value = '';
   document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
   document.querySelectorAll('.form-control').forEach(el => el.classList.remove('error'));
-
-  // Reset to first tab
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-  document.querySelector('.tab[data-tab="basic"]')?.classList.add('active');
-  document.getElementById('tab-basic')?.classList.add('active');
+  switchTab('basic');
 
   if (id) {
     title.textContent = 'Edit Monitor';
-    document.getElementById('modal-save').textContent = 'Save Changes';
+    saveBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Save Changes';
     try {
       const detail = await apiFetch(`site_detail&id=${id}`);
       const s = detail.site;
@@ -438,16 +440,16 @@ async function openSiteModal(id = null) {
       document.getElementById('site-email').value      = s.alert_email || '';
       document.getElementById('site-active').checked   = s.is_active == 1;
     } catch (err) {
-      showToast('Failed to load site: ' + err.message, 'error');
+      showToast('Failed to load monitor: ' + err.message, 'error');
       return;
     }
   } else {
     title.textContent = 'Add Monitor';
-    document.getElementById('modal-save').innerHTML =
-      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Save Monitor';
+    saveBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Save Monitor';
   }
 
   modal.classList.add('open');
+  document.getElementById('site-name').focus();
 }
 
 function closeModal() {
@@ -455,37 +457,38 @@ function closeModal() {
 }
 
 async function saveSite() {
-  // Validate
   const name = document.getElementById('site-name').value.trim();
   const url  = document.getElementById('site-url').value.trim();
+  const isEdit = !!document.getElementById('site-id').value;
   let valid  = true;
 
+  // Clear previous errors
   document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
   document.querySelectorAll('.form-control').forEach(el => el.classList.remove('error'));
 
   if (!name) {
     document.getElementById('err-name').textContent = 'Name is required';
     document.getElementById('site-name').classList.add('error');
+    // Switch to basic tab
+    switchTab('basic');
     valid = false;
   }
   if (!url) {
     document.getElementById('err-url').textContent = 'URL is required';
     document.getElementById('site-url').classList.add('error');
+    switchTab('basic');
     valid = false;
   } else if (!/^https?:\/\/.+/.test(url)) {
     document.getElementById('err-url').textContent = 'Must start with http:// or https://';
     document.getElementById('site-url').classList.add('error');
-    // Switch to basic tab to show error
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-    document.querySelector('.tab[data-tab="basic"]')?.classList.add('active');
-    document.getElementById('tab-basic')?.classList.add('active');
+    switchTab('basic');
     valid = false;
   }
 
   if (!valid) return;
 
-  const saveBtn = document.getElementById('modal-save');
+  const saveBtn  = document.getElementById('modal-save');
+  const origHTML = saveBtn.innerHTML;
   saveBtn.disabled = true;
   saveBtn.innerHTML = '<span class="spinner"></span> Saving…';
 
@@ -505,14 +508,18 @@ async function saveSite() {
   try {
     await apiPost('save_site', data);
     closeModal();
-    showToast(data.id ? 'Monitor updated' : 'Monitor added', 'success');
+    showToast(isEdit ? 'Monitor updated successfully' : 'Monitor added successfully', 'success');
     loadDashboard();
   } catch (err) {
     showToast('Save failed: ' + err.message, 'error');
-  } finally {
     saveBtn.disabled = false;
-    saveBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Save Monitor';
+    saveBtn.innerHTML = origHTML;
   }
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
 }
 
 // ── Confirm modal ─────────────────────────────────────────────────────────
