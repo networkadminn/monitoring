@@ -962,7 +962,7 @@ async function runManualCheck() {
 // ── API helpers ───────────────────────────────────────────────────────────
 async function apiFetch(action) {
   try {
-    const res  = await fetch(`${API}?action=${action}`, {
+    const res  = await fetch(`${API}?action=${action}&t=${Date.now()}`, {
       cache: 'no-store' // Prevent API caching
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

@@ -14,6 +14,9 @@ session_start();
 
 header('Content-Type: application/json');
 header('X-Content-Type-Options: nosniff');
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
+header('Expires: 0');
 
 // Session auth check
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {

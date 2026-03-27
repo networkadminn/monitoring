@@ -8,6 +8,10 @@ require_once MONITOR_ROOT . '/includes/auth.php';
 session_start();
 requireLogin();
 
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
