@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS hourly_stats (
     FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS incident_log (
+CREATE TABLE IF NOT EXISTS incidents (
     id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     site_id          INT UNSIGNED    NOT NULL,
     started_at       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -118,6 +118,15 @@ SQL;
         if (!in_array('tags', $cols)) {
             $pdo->exec('ALTER TABLE sites ADD COLUMN tags VARCHAR(255) NULL AFTER is_active');
             $messages[] = 'Migration: Added "tags" column to sites table.';
+        }
+
+        // Rename incident_log to incidents if it exists
+        try {
+            $pdo->query('SELECT 1 FROM incident_log LIMIT 1');
+            $pdo->exec('RENAME TABLE incident_log TO incidents');
+            $messages[] = 'Migration: Renamed incident_log table to incidents.';
+        } catch (Exception $e) {
+            // Table doesn't exist, ignore
         }
 
         // ── Sample data ───────────────────────────────────────────────────────

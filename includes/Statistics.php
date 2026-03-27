@@ -139,7 +139,7 @@ class Statistics {
     public static function getIncidents(int $siteId, int $limit = 20): array {
         return Database::fetchAll(
             'SELECT id, started_at, ended_at, duration_seconds, error_message
-             FROM incident_log
+             FROM incidents
              WHERE site_id = ?
              ORDER BY started_at DESC
              LIMIT ?',
@@ -153,7 +153,7 @@ class Statistics {
     public static function getAllIncidents(int $limit = 50): array {
         return Database::fetchAll(
             'SELECT i.*, s.name AS site_name, s.url
-             FROM incident_log i
+             FROM incidents i
              JOIN sites s ON s.id = i.site_id
              ORDER BY i.started_at DESC
              LIMIT ?',
