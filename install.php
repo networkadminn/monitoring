@@ -10,7 +10,9 @@ $errors   = [];
 $messages = [];
 $done     = false;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install'])) {
+$is_cli = (php_sapi_name() === 'cli');
+
+if ($is_cli || ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install']))) {
     try {
         // Connect without selecting a DB first so we can CREATE it
         $pdo = new PDO(
@@ -39,6 +41,7 @@ CREATE TABLE IF NOT EXISTS sites (
     alert_phone      VARCHAR(30)   NULL,
     alert_telegram   VARCHAR(60)   NULL,
     is_active        TINYINT(1)    NOT NULL DEFAULT 1,
+    tags             VARCHAR(255)  NULL,
     uptime_percentage DECIMAL(5,2) NOT NULL DEFAULT 100.00,
     created_at       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_active (is_active)
@@ -109,6 +112,14 @@ SQL;
         }
         $messages[] = 'All tables created.';
 
+        // ── Migrations ────────────────────────────────────────────────────────
+        // Add tags column if it doesn't exist
+        $cols = $pdo->query('SHOW COLUMNS FROM sites')->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('tags', $cols)) {
+            $pdo->exec('ALTER TABLE sites ADD COLUMN tags VARCHAR(255) NULL AFTER is_active');
+            $messages[] = 'Migration: Added "tags" column to sites table.';
+        }
+
         // ── Sample data ───────────────────────────────────────────────────────
         if (isset($_POST['sample_data'])) {
             $samples = [
@@ -143,7 +154,17 @@ SQL;
 
         $done = true;
 
+        if ($is_cli) {
+            echo implode("\n", $messages) . "\n";
+            echo "✅ Installation complete!\n";
+            exit(0);
+        }
+
     } catch (PDOException $e) {
+        if ($is_cli) {
+            echo "❌ Database error: " . $e->getMessage() . "\n";
+            exit(1);
+        }
         $errors[] = 'Database error: ' . $e->getMessage();
     }
 }
