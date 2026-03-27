@@ -14,35 +14,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-      
-      - name: Test SSH Connection
-        run: |
-          ssh -T ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo '✅ SSH connection successful'"
-      
-      - name: Deploy to Server
-        run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'DEPLOY_SCRIPT'
-            echo "🔄 Starting deployment..."
+      - name: Deploy with SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
             cd /home/euclideesolution/monitoring.euclideesolutions.com
-            
-            echo "📥 Pulling latest code from GitHub..."
+            echo "🔄 Pulling latest changes..."
             git pull origin main
-            
-            echo "🔧 Setting file permissions..."
-            chmod 644 config.php 2>/dev/null || true
-            chmod 755 index.php cron_runner.php 2>/dev/null || true
-            
-            echo "🗄️ Running database migrations..."
+            echo "🗄️ Running database updates..."
             php install.php
-            
-            echo "✅ Deployment completed successfully!"
-          DEPLOY_SCRIPT
+            echo "🔧 Setting permissions..."
+            chmod 644 config.php
+            chmod 755 index.php cron_runner.php
+            echo "✅ Deployment completed at $(date)"
       
       - name: Verify Deployment
         run: |
