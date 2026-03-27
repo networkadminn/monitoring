@@ -71,6 +71,9 @@ async function loadDashboard() {
 
   const path = window.location.pathname;
   const page = path.split('/').pop() || 'index.php';
+  const params = new URLSearchParams(window.location.search);
+  const filterType = params.get('type');
+  const filterTag  = params.get('tag');
 
   try {
     if (page === 'index.php' || page === '' || page === 'dashboard.php') {
@@ -84,17 +87,34 @@ async function loadDashboard() {
 
       sitesData = sites;
       renderHealthCards(health);
-      renderSitesTable(sites);
       renderIncidentsTable(incidents);
-    renderSSLChart(ssl);
-    renderStatusTypesChart(sites);
-    renderUptimeChart(sites);
-    renderResponseTrendChart(sites);
+      renderSSLChart(ssl);
+      renderStatusTypesChart(sites);
+      renderUptimeChart(sites);
+      renderResponseTrendChart(sites);
       renderHistogramChart(sites);
       renderGauge(health.health_score);
       renderSlowestList(slowest);
     } else if (page === 'sites.php') {
-      const sites = await apiFetch('sites');
+      let sites = await apiFetch('sites');
+      
+      // Apply URL-based filtering
+      if (filterType) {
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        const navMap = { websites: 'nav-websites', ssl: 'nav-ssl', ports: 'nav-ports' };
+        document.getElementById(navMap[filterType])?.classList.add('active');
+
+        sites = sites.filter(s => {
+          if (filterType === 'websites') return ['http', 'keyword'].includes(s.check_type);
+          if (filterType === 'ssl') return s.check_type === 'ssl';
+          if (filterType === 'ports') return s.check_type === 'port';
+          return true;
+        });
+      }
+      if (filterTag) {
+        sites = sites.filter(s => s.tags && s.tags.toLowerCase().includes(filterTag.toLowerCase()));
+      }
+
       sitesData = sites;
       renderSitesTable(sites);
     }
