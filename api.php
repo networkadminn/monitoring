@@ -7,6 +7,7 @@ define('MONITOR_ROOT', __DIR__);
 require_once MONITOR_ROOT . '/config.php';
 require_once MONITOR_ROOT . '/includes/Database.php';
 require_once MONITOR_ROOT . '/includes/Statistics.php';
+require_once MONITOR_ROOT . '/includes/Checker.php';
 require_once MONITOR_ROOT . '/includes/auth.php';
 
 session_start();
@@ -115,6 +116,14 @@ try {
             ]);
             break;
 
+        // Test connection before saving
+        case 'test_connection':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            $data = json_decode(file_get_contents('php://input'), true);
+            $result = Checker::check($data);
+            jsonOk($result);
+            break;
+
         // Save / update a site
         case 'save_site':
             if ($method !== 'POST') jsonError('POST required', 405);
@@ -127,7 +136,12 @@ try {
             if ($method !== 'POST') jsonError('POST required', 405);
             $id = (int) ($_GET['id'] ?? 0);
             if (!$id) jsonError('Missing id', 400);
+
+            // Delete associated data first
+            Database::execute('DELETE FROM incidents WHERE site_id = ?', [$id]);
+            Database::execute('DELETE FROM logs WHERE site_id = ?', [$id]);
             Database::execute('DELETE FROM sites WHERE id = ?', [$id]);
+
             jsonOk(['deleted' => $id]);
             break;
 
@@ -137,8 +151,13 @@ try {
             $data = json_decode(file_get_contents('php://input'), true);
             $ids  = array_filter(array_map('intval', $data['ids'] ?? []), fn($i) => $i > 0);
             if (empty($ids)) jsonError('No valid IDs provided', 400);
+
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            // Delete associated data first
+            Database::execute("DELETE FROM incidents WHERE site_id IN ($placeholders)", $ids);
+            Database::execute("DELETE FROM logs WHERE site_id IN ($placeholders)", $ids);
             Database::execute("DELETE FROM sites WHERE id IN ($placeholders)", $ids);
+
             jsonOk(['deleted' => count($ids)]);
             break;
 
@@ -179,6 +198,18 @@ function saveSite(array $d): void {
     foreach ($fields as $f) {
         $clean[$f] = isset($d[$f]) ? trim((string) $d[$f]) : null;
     }
+
+    // Basic validation
+    if (empty($clean['name'])) jsonError('Name is required');
+    if (empty($clean['url'])) jsonError('URL is required');
+
+    // More URL validation based on check type
+    if (in_array($clean['check_type'], ['http', 'keyword', 'ssl'])) {
+        if (!filter_var($clean['url'], FILTER_VALIDATE_URL)) {
+            jsonError('Invalid URL format');
+        }
+    }
+
     $clean['is_active']       = isset($d['is_active']) ? (int) $d['is_active'] : 1;
     $clean['expected_status'] = (int) ($d['expected_status'] ?? 200);
 
@@ -190,7 +221,7 @@ function saveSite(array $d): void {
              WHERE id=?',
             array_merge(array_values($clean), [$id])
         );
-        jsonOk(['updated' => $id]);
+        jsonOk(['updated' => $id, 'message' => 'Monitor updated successfully']);
     } else {
         $id = Database::insert(
             'INSERT INTO sites (name, url, check_type, port, hostname, keyword,
@@ -198,7 +229,7 @@ function saveSite(array $d): void {
              VALUES (?,?,?,?,?,?,?,?,?,?,?)',
             array_values($clean)
         );
-        jsonOk(['created' => $id]);
+        jsonOk(['created' => $id, 'message' => 'Monitor added successfully']);
     }
 }
 

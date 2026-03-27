@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Modal save/cancel
   document.getElementById('modal-save')?.addEventListener('click', saveSite);
+  document.getElementById('modal-test')?.addEventListener('click', testConnection);
   document.getElementById('modal-cancel')?.addEventListener('click', closeModal);
   document.getElementById('modal-close')?.addEventListener('click', closeModal);
   document.getElementById('modal-overlay')?.addEventListener('click', (e) => {
@@ -415,12 +416,17 @@ async function openSiteModal(id = null) {
   const modal = document.getElementById('modal-overlay');
   const title = document.getElementById('modal-title');
   const saveBtn = document.getElementById('modal-save');
+  const testRes = document.getElementById('test-result');
 
   // Reset form + errors
   document.getElementById('site-form').reset();
   document.getElementById('site-id').value = '';
   document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
   document.querySelectorAll('.form-control').forEach(el => el.classList.remove('error'));
+  if (testRes) {
+    testRes.style.display = 'none';
+    testRes.textContent = '';
+  }
   switchTab('basic');
 
   if (id) {
@@ -450,6 +456,58 @@ async function openSiteModal(id = null) {
 
   modal.classList.add('open');
   document.getElementById('site-name').focus();
+}
+
+async function testConnection() {
+  const btn = document.getElementById('modal-test');
+  const res = document.getElementById('test-result');
+  if (!btn || !res) return;
+
+  const url = document.getElementById('site-url').value.trim();
+  if (!url) {
+    showToast('URL is required to test connection', 'error');
+    return;
+  }
+
+  const data = {
+    url,
+    check_type:      document.getElementById('site-check-type').value,
+    port:            document.getElementById('site-port').value,
+    hostname:        document.getElementById('site-hostname').value,
+    keyword:         document.getElementById('site-keyword').value,
+    expected_status: document.getElementById('site-expected').value || 200,
+  };
+
+  const origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Testing…';
+  res.style.display = 'block';
+  res.className = 'test-result testing';
+  res.textContent = 'Connecting to ' + url + '...';
+  res.style.backgroundColor = 'rgba(255,255,255,0.05)';
+  res.style.color = 'var(--text)';
+
+  try {
+    const result = await apiPost('test_connection', data);
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+
+    if (result.status === 'up') {
+      res.style.backgroundColor = 'rgba(34,197,94,0.1)';
+      res.style.color = '#22c55e';
+      res.innerHTML = `<strong>Success!</strong> Connection established in ${Math.round(result.response_time)}ms.`;
+    } else {
+      res.style.backgroundColor = 'rgba(239,68,68,0.1)';
+      res.style.color = '#ef4444';
+      res.innerHTML = `<strong>Failed:</strong> ${esc(result.error_message || 'Unknown error')}`;
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+    res.style.backgroundColor = 'rgba(239,68,68,0.1)';
+    res.style.color = '#ef4444';
+    res.textContent = 'Test failed: ' + err.message;
+  }
 }
 
 function closeModal() {
@@ -506,9 +564,9 @@ async function saveSite() {
   };
 
   try {
-    await apiPost('save_site', data);
+    const result = await apiPost('save_site', data);
     closeModal();
-    showToast(isEdit ? 'Monitor updated successfully' : 'Monitor added successfully', 'success');
+    showToast(result.message || (isEdit ? 'Monitor updated successfully' : 'Monitor added successfully'), 'success');
     loadDashboard();
   } catch (err) {
     showToast('Save failed: ' + err.message, 'error');
@@ -547,11 +605,27 @@ function closeConfirm() {
 function confirmDeleteSite(id, name) {
   showConfirm('Delete Monitor', 'Are you sure? All logs and history will be permanently removed.', [name], async () => {
     try {
+      // Optimistic UI: find the row and fade it out
+      const row = document.querySelector(`.site-checkbox[data-id="${id}"]`)?.closest('tr');
+      if (row) {
+        row.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        row.style.opacity = '0.3';
+        row.style.transform = 'translateX(10px)';
+      }
+
       await apiPost(`delete_site&id=${id}`, {});
       showToast('Monitor deleted', 'success');
-      loadDashboard();
+
+      if (row) {
+        row.style.transform = 'translateX(-20px)';
+        row.style.opacity = '0';
+        setTimeout(() => loadDashboard(), 300);
+      } else {
+        loadDashboard();
+      }
     } catch (err) {
       showToast('Delete failed: ' + err.message, 'error');
+      loadDashboard(); // Refresh anyway to restore state
     }
   });
 }
@@ -564,11 +638,23 @@ function bulkDeleteSites() {
   showConfirm(`Delete ${ids.length} Monitor${ids.length > 1 ? 's' : ''}`,
     'This will permanently delete the selected monitors and all their history.', names, async () => {
     try {
+      // Optimistic UI: fade out all selected rows
+      checked.forEach(cb => {
+        const row = cb.closest('tr');
+        if (row) {
+          row.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+          row.style.opacity = '0.3';
+          row.style.transform = 'translateX(10px)';
+        }
+      });
+
       const result = await apiPost('bulk_delete_sites', { ids });
       showToast(`${result.deleted} monitor(s) deleted`, 'success');
-      loadDashboard();
+
+      setTimeout(() => loadDashboard(), 300);
     } catch (err) {
       showToast('Bulk delete failed: ' + err.message, 'error');
+      loadDashboard();
     }
   });
 }

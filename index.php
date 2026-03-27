@@ -357,9 +357,18 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
           </p>
         </div>
 
+        <!-- Test result -->
+        <div id="test-result" style="margin-top:16px;padding:12px;border-radius:6px;display:none;font-size:13px;line-height:1.4"></div>
+
       </form>
     </div>
     <div class="modal-footer">
+      <div style="flex-grow:1;display:flex;gap:8px">
+        <button type="button" class="btn btn-ghost" id="modal-test">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Test Connection
+        </button>
+      </div>
       <button type="button" class="btn btn-ghost" id="modal-cancel">Cancel</button>
       <button type="button" class="btn btn-primary" id="modal-save">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
