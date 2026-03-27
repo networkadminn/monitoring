@@ -16,26 +16,35 @@ jobs:
       
       - name: Setup SSH
         run: |
-          mkdir -p ~/.ssh/
+          mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
       
+      - name: Test SSH Connection
+        run: |
+          ssh -T ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo '✅ SSH connection successful'"
+      
       - name: Deploy to Server
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} 'bash -s' << 'ENDSSH'
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'DEPLOY_SCRIPT'
+            echo "🔄 Starting deployment..."
             cd /home/euclideesolution/monitoring.euclideesolutions.com
-            echo "🔄 Pulling latest changes..."
+            
+            echo "📥 Pulling latest code from GitHub..."
             git pull origin main
-            echo "📦 Setting permissions..."
-            chmod 644 config.php
-            chmod 755 index.php cron_runner.php
-            echo "🗄️ Running database updates..."
+            
+            echo "🔧 Setting file permissions..."
+            chmod 644 config.php 2>/dev/null || true
+            chmod 755 index.php cron_runner.php 2>/dev/null || true
+            
+            echo "🗄️ Running database migrations..."
             php install.php
-            echo "✅ Deployment complete!"
-          ENDSSH
+            
+            echo "✅ Deployment completed successfully!"
+          DEPLOY_SCRIPT
       
       - name: Verify Deployment
         run: |
-          echo "🔍 Checking site status..."
+          echo "🔍 Verifying deployment..."
           curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" https://monitoring.euclideesolutions.com/
