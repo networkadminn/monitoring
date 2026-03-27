@@ -81,11 +81,17 @@ async function loadDashboard() {
   const filterType = params.get('type');
   const filterTag  = params.get('tag');
 
-  try {
-    // Robust page detection
-    const isDashboard = document.getElementById('chart-status-types') !== null;
-    const isSitesPage = document.getElementById('sites-table') !== null;
+  // Robust page detection
+  const isDashboard = document.getElementById('chart-status-types') !== null;
+  const isSitesPage = document.getElementById('sites-table') !== null;
+  console.log('Detection results:', { isDashboard, isSitesPage });
 
+  if (!isDashboard && !isSitesPage) {
+    console.warn('No dashboard or sites table element found on this page.');
+    return;
+  }
+
+  try {
     if (isDashboard) {
       const [health, sites, incidents, ssl, slowest, systemUptime] = await Promise.all([
         apiFetch('health'),
