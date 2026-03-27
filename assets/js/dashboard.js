@@ -78,7 +78,7 @@ async function loadDashboard() {
 
   try {
     // Robust page detection
-    const isDashboard = document.getElementById('chart-gauge') !== null;
+    const isDashboard = document.getElementById('chart-status-types') !== null;
     const isSitesPage = document.getElementById('sites-table') !== null;
 
     if (isDashboard) {
