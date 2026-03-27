@@ -235,6 +235,9 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
             <span class="text-muted" style="font-size:12px" id="sites-count"></span>
           </div>
         </div>
+        <div class="loading-overlay" id="sites-loading-overlay">
+          <div class="spinner" style="width:32px;height:32px"></div>
+        </div>
         <div class="table-wrap">
           <table id="sites-table">
             <thead>

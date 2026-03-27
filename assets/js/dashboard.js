@@ -15,6 +15,7 @@ const charts = {};
 let sitesData = [];
 let sitesTable = null; // DataTable instance
 let refreshTimer = null;
+let lastAddedSiteId = null; // To highlight newly added site
 
 // ── Init ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -50,6 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Main loader ───────────────────────────────────────────────────────────
 async function loadDashboard() {
+  const overlay = document.getElementById('sites-loading-overlay');
+  if (overlay) overlay.classList.add('active');
+
   try {
     const [health, sites, incidents, ssl] = await Promise.all([
       apiFetch('health'),
@@ -70,6 +74,8 @@ async function loadDashboard() {
     updateLastUpdated();
   } catch (err) {
     showToast('Failed to load dashboard: ' + err.message, 'error');
+  } finally {
+    if (overlay) overlay.classList.remove('active');
   }
 }
 
@@ -127,7 +133,10 @@ function renderSitesTable(sites) {
       `<div class="uptime-block ${i < filledCount ? blockCls : 'empty'}" title="Day ${i+1}"></div>`
     ).join('');
 
-    return `<tr>
+    const isNew = lastAddedSiteId == s.id;
+    const rowCls = isNew ? 'row-new pulse-highlight' : '';
+
+    return `<tr class="${rowCls}">
       <td><input type="checkbox" class="site-checkbox" data-id="${s.id}" data-name="${esc(s.name)}" style="cursor:pointer"></td>
       <td>
         <div class="site-name-cell">
@@ -178,6 +187,14 @@ function renderSitesTable(sites) {
     });
   } else {
     bindCheckboxEvents();
+  }
+
+  // Clear highlight after a few seconds
+  if (lastAddedSiteId) {
+    setTimeout(() => {
+      document.querySelectorAll('.pulse-highlight').forEach(el => el.classList.remove('pulse-highlight'));
+      lastAddedSiteId = null;
+    }, 4000);
   }
 
   const countEl = document.getElementById('sites-count');
@@ -567,6 +584,14 @@ async function saveSite() {
     const result = await apiPost('save_site', data);
     closeModal();
     showToast(result.message || (isEdit ? 'Monitor updated successfully' : 'Monitor added successfully'), 'success');
+    
+    // Capture the ID for highlighting if it's a new site
+    if (!isEdit && result.created) {
+      lastAddedSiteId = result.created;
+    } else if (isEdit && data.id) {
+      lastAddedSiteId = data.id;
+    }
+    
     loadDashboard();
   } catch (err) {
     showToast('Save failed: ' + err.message, 'error');
@@ -605,24 +630,16 @@ function closeConfirm() {
 function confirmDeleteSite(id, name) {
   showConfirm('Delete Monitor', 'Are you sure? All logs and history will be permanently removed.', [name], async () => {
     try {
-      // Optimistic UI: find the row and fade it out
       const row = document.querySelector(`.site-checkbox[data-id="${id}"]`)?.closest('tr');
       if (row) {
-        row.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-        row.style.opacity = '0.3';
-        row.style.transform = 'translateX(10px)';
+        row.classList.add('row-removing');
       }
 
       await apiPost(`delete_site&id=${id}`, {});
       showToast('Monitor deleted', 'success');
 
-      if (row) {
-        row.style.transform = 'translateX(-20px)';
-        row.style.opacity = '0';
-        setTimeout(() => loadDashboard(), 300);
-      } else {
-        loadDashboard();
-      }
+      // Wait for animation to finish before reloading
+      setTimeout(() => loadDashboard(), 400);
     } catch (err) {
       showToast('Delete failed: ' + err.message, 'error');
       loadDashboard(); // Refresh anyway to restore state
@@ -638,20 +655,17 @@ function bulkDeleteSites() {
   showConfirm(`Delete ${ids.length} Monitor${ids.length > 1 ? 's' : ''}`,
     'This will permanently delete the selected monitors and all their history.', names, async () => {
     try {
-      // Optimistic UI: fade out all selected rows
       checked.forEach(cb => {
         const row = cb.closest('tr');
         if (row) {
-          row.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-          row.style.opacity = '0.3';
-          row.style.transform = 'translateX(10px)';
+          row.classList.add('row-removing');
         }
       });
 
       const result = await apiPost('bulk_delete_sites', { ids });
       showToast(`${result.deleted} monitor(s) deleted`, 'success');
 
-      setTimeout(() => loadDashboard(), 300);
+      setTimeout(() => loadDashboard(), 400);
     } catch (err) {
       showToast('Bulk delete failed: ' + err.message, 'error');
       loadDashboard();
