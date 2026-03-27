@@ -304,12 +304,33 @@ function updateBulkBtn() {
 
 // ── Incidents table ───────────────────────────────────────────────────────
 function renderIncidentsTable(incidents) {
+  // Destroy existing DataTable if it exists
+  if ($.fn.DataTable.isDataTable('#incidents-table')) {
+    $('#incidents-table').DataTable().destroy();
+  }
+
   const tbody = document.getElementById('incidents-tbody');
   if (!tbody) return;
 
   if (!incidents.length) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--muted)">No incidents recorded</td></tr>`;
+    tbody.innerHTML = ''; // Keep it empty for DataTables
+    const wrap = tbody.closest('.table-wrap');
+    if (wrap) {
+      const existing = wrap.querySelector('.empty-state');
+      if (existing) existing.remove();
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'No incidents recorded';
+      wrap.appendChild(empty);
+    }
     return;
+  }
+
+  // Remove empty state if it exists
+  const wrap = tbody.closest('.table-wrap');
+  if (wrap) {
+    const existing = wrap.querySelector('.empty-state');
+    if (existing) existing.remove();
   }
 
   tbody.innerHTML = incidents.map(i => {
@@ -324,6 +345,15 @@ function renderIncidentsTable(incidents) {
       <td class="text-muted" style="font-size:12px">${esc(i.error_message || '')}</td>
     </tr>`;
   }).join('');
+
+  if (window.jQuery && $.fn.DataTable && incidents.length > 0) {
+    $('#incidents-table').DataTable({
+      pageLength: 10,
+      order: [[1, 'desc']],
+      columnDefs: [{ orderable: false, targets: [4] }],
+      language: { search: 'Filter incidents:' }
+    });
+  }
 }
 
 // ── Response time trend (multi-site line chart) ───────────────────────────
@@ -871,11 +901,14 @@ function initSiteDetails() {
 
   // Init DataTables with proper error handling
   if (window.jQuery && $.fn.DataTable) {
-    // Check if table has rows before initializing to avoid "Incorrect column count" if empty
-    if ($('#logs-table tbody tr').length > 0 && $('#logs-table tbody tr td').length > 1) {
+    // Only init if table has actual data rows (not just header)
+    const logsCount = $('#logs-table tbody tr').length;
+    if (logsCount > 0 && !$('#logs-table tbody tr:first td').attr('colspan')) {
       $('#logs-table').DataTable({ pageLength: 25, order: [[0, 'desc']] });
     }
-    if ($('#incidents-table tbody tr').length > 0 && $('#incidents-table tbody tr td').length > 1) {
+    
+    const incCount = $('#incidents-table tbody tr').length;
+    if (incCount > 0 && !$('#incidents-table tbody tr:first td').attr('colspan')) {
       $('#incidents-table').DataTable({ pageLength: 10, order: [[0, 'desc']] });
     }
   }
