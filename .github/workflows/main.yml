@@ -23,13 +23,21 @@ jobs:
           port: 22
           script: |
             cd /home/euclideesolution/monitoring.euclideesolutions.com
-            echo "🔄 Pulling latest changes..."
-            git pull origin main
+            echo "🔄 Fetching latest changes..."
+            git fetch origin main
+            
+            echo "🧹 Cleaning up local modifications..."
+            # Force server to match repository exactly (production best practice)
+            git reset --hard origin/main
+            
             echo "🗄️ Running database updates..."
+            # This ensures any new tables/columns (like 'tags') are created
             php install.php
+            
             echo "🔧 Setting permissions..."
             chmod 644 config.php
             chmod 755 index.php cron_runner.php
+            
             echo "✅ Deployment completed at $(date)"
       
       - name: Verify Deployment
