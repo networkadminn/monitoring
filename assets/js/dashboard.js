@@ -132,7 +132,7 @@ async function loadDashboard() {
 
           sites = sites.filter(s => {
             if (filterType === 'websites') return ['http', 'keyword', 'ssl'].includes(s.check_type);
-            if (filterType === 'ssl') return s.ssl_expiry_days !== null;
+            if (filterType === 'ssl') return (s.ssl_expiry_days !== null && s.ssl_expiry_days !== undefined);
             if (filterType === 'ports') return s.check_type === 'port';
             return true;
           });
@@ -962,7 +962,9 @@ async function runManualCheck() {
 // ── API helpers ───────────────────────────────────────────────────────────
 async function apiFetch(action) {
   try {
-    const res  = await fetch(`${API}?action=${action}`);
+    const res  = await fetch(`${API}?action=${action}`, {
+      cache: 'no-store' // Prevent API caching
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     if (!json.success) throw new Error(json.error || 'API error');

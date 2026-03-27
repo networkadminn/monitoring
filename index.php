@@ -32,7 +32,7 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-  <link rel="stylesheet" href="assets/css/dashboard.css?v=1.0.3">
+  <link rel="stylesheet" href="assets/css/dashboard.css?v=1.0.5">
 </head>
 <body>
 <div class="layout">
@@ -52,19 +52,19 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         <span>Dashboard</span>
       </a>
-      <a class="nav-item" href="sites.php">
+      <a class="nav-item" id="nav-all" href="sites.php">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
         <span>All Monitors</span>
       </a>
-      <a class="nav-item" href="sites.php?type=websites" style="padding-left:32px;font-size:12px;opacity:0.8">
+      <a class="nav-item" id="nav-websites" href="sites.php?type=websites" style="padding-left:32px;font-size:12px;opacity:0.8">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
         <span>Websites</span>
       </a>
-      <a class="nav-item" href="sites.php?type=ssl" style="padding-left:32px;font-size:12px;opacity:0.8">
+      <a class="nav-item" id="nav-ssl" href="sites.php?type=ssl" style="padding-left:32px;font-size:12px;opacity:0.8">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         <span>SSL Certs</span>
       </a>
-      <a class="nav-item" href="sites.php?type=ports" style="padding-left:32px;font-size:12px;opacity:0.8">
+      <a class="nav-item" id="nav-ports" href="sites.php?type=ports" style="padding-left:32px;font-size:12px;opacity:0.8">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
         <span>Port Checks</span>
       </a>
@@ -288,6 +288,6 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="assets/js/dashboard.js?v=1.0.3"></script>
+<script src="assets/js/dashboard.js?v=1.0.5"></script>
 </body>
 </html>
