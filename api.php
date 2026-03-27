@@ -8,6 +8,8 @@ require_once MONITOR_ROOT . '/config.php';
 require_once MONITOR_ROOT . '/includes/Database.php';
 require_once MONITOR_ROOT . '/includes/Statistics.php';
 
+session_start();
+
 header('Content-Type: application/json');
 header('X-Content-Type-Options: nosniff');
 
@@ -133,6 +135,16 @@ try {
             $id   = (int) ($_GET['id'] ?? 0);
             $logs = Statistics::getRecentLogs($id, 10000);
             jsonOk($logs);
+            break;
+
+        // Purge old logs manually
+        case 'purge_logs':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            $deleted = Database::execute(
+                'DELETE FROM logs WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)',
+                [LOG_RETENTION_DAYS]
+            );
+            jsonOk(['deleted' => $deleted]);
             break;
 
         default:
