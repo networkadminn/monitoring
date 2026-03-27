@@ -212,6 +212,29 @@ a:hover { text-decoration: underline; }
   margin-right: 4px;
 }
 
+/* ── Custom Chart Legend ────────────────────────────────────────────────── */
+.chart-legend-custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+  max-width: 60%;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
 /* ── Status bar ──────────────────────────────────────────────────────────── */
 .status-bar {
   background: var(--surface2);

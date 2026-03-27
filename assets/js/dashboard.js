@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (page === 'index.php' || page === 'sites.php' || page === '') {
     loadDashboard();
-    refreshTimer = setInterval(loadDashboard, 60000);
+    refreshTimer = setInterval(loadDashboard, 30000); // Changed to 30s for better real-time feel
   }
 
   if (page === 'site_details.php') {
@@ -392,14 +392,26 @@ async function renderResponseTrendChart(sites) {
     data: { labels: labels.map(h => h.slice(11, 16)), datasets },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { position: 'bottom' } },
+      plugins: { legend: { display: false } }, // Custom legend used
       scales: {
-        y: { title: { display: true, text: 'Response Time (ms)' }, beginAtZero: true },
-        x: { ticks: { maxTicksLimit: 12 } },
+        y: { title: { display: true, text: 'ms' }, beginAtZero: true, grid: { color: 'rgba(255,255,255,0.03)' } },
+        x: { ticks: { maxTicksLimit: 12 }, grid: { display: false } },
       },
     },
   });
+
+  // Render custom legend
+  const legend = document.getElementById('trend-legend');
+  if (legend) {
+    legend.innerHTML = sites.slice(0, 8).map((s, i) => `
+      <div class="legend-item">
+        <span class="legend-dot" style="background:${colors[i]}"></span>
+        <span>${esc(s.name)}</span>
+      </div>
+    `).join('');
+  }
 }
 
 // ── SSL expiry bar chart ──────────────────────────────────────────────────

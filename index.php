@@ -172,12 +172,15 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
       <div class="charts-grid" style="grid-template-columns:1fr">
         <div class="chart-panel">
           <div class="chart-header">
-            <div>
-              <div class="chart-title">Response Time — Last 24 Hours</div>
-              <div class="chart-subtitle">All monitors overlay</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+              <div>
+                <div class="chart-title">Performance Overlays — Last 24 Hours</div>
+                <div class="chart-subtitle">Comparing top 8 monitors</div>
+              </div>
+              <div class="chart-legend-custom" id="trend-legend"></div>
             </div>
           </div>
-          <canvas id="chart-response-trend"></canvas>
+          <canvas id="chart-response-trend" style="max-height:350px"></canvas>
         </div>
       </div>
 

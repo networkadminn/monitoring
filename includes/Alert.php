@@ -63,7 +63,10 @@ class Alert {
     // Build subject line
     // -------------------------------------------------------------------------
     private static function buildSubject(array $site, array $result, string $event): string {
-        $icon = $event === 'recovery' ? '✅ RECOVERED' : '🚨 ALERT';
+        $icon = $event === 'recovery' ? '✅ RECOVERED' : ($event === 'ssl_expiry' ? '🎫 SSL EXPIRING' : '🚨 ALERT');
+        if ($event === 'ssl_expiry') {
+            return "$icon: {$site['name']} SSL expires in {$result['ssl_expiry_days']} days";
+        }
         return "$icon: {$site['name']} is " . ($event === 'recovery' ? 'back online' : 'DOWN');
     }
 
@@ -72,12 +75,18 @@ class Alert {
     // -------------------------------------------------------------------------
     private static function buildBody(array $site, array $result, string $event): string {
         $time    = date('Y-m-d H:i:s T');
-        $status  = strtoupper($event === 'recovery' ? 'RECOVERED' : $result['status']);
-        $color   = $event === 'recovery' ? '#27ae60' : '#e74c3c';
+        $status  = strtoupper($event === 'recovery' ? 'RECOVERED' : ($event === 'ssl_expiry' ? 'SSL EXPIRING' : $result['status']));
+        $color   = $event === 'recovery' ? '#27ae60' : ($event === 'ssl_expiry' ? '#f39c12' : '#e74c3c');
         $error   = htmlspecialchars($result['error_message'] ?? 'N/A');
         $rt      = $result['response_time'] ?? 'N/A';
         $url     = htmlspecialchars($site['url']);
         $name    = htmlspecialchars($site['name']);
+        
+        $expiryInfo = '';
+        if ($event === 'ssl_expiry') {
+            $days = $result['ssl_expiry_days'];
+            $expiryInfo = "<tr><td style=\"padding:6px;color:#666\">SSL Expiry</td><td style=\"color:#e67e22;font-weight:bold\">{$days} Days Left</td></tr>";
+        }
 
         return <<<HTML
 <div style="font-family:Arial,sans-serif;max-width:600px">
@@ -88,6 +97,7 @@ class Alert {
     <table style="width:100%;border-collapse:collapse">
       <tr><td style="padding:6px;color:#666">URL</td><td><a href="{$url}">{$url}</a></td></tr>
       <tr><td style="padding:6px;color:#666">Status</td><td><strong>{$status}</strong></td></tr>
+      {$expiryInfo}
       <tr><td style="padding:6px;color:#666">Error</td><td>{$error}</td></tr>
       <tr><td style="padding:6px;color:#666">Response Time</td><td>{$rt} ms</td></tr>
       <tr><td style="padding:6px;color:#666">Time</td><td>{$time}</td></tr>

@@ -71,7 +71,7 @@ foreach ($sites as $site) {
     if ($result['status'] === 'down' && $prevStatus !== 'down') {
         // Site just went DOWN — open a new incident
         Database::execute(
-            'INSERT INTO incident_log (site_id, started_at, error_message) VALUES (?, NOW(), ?)',
+            'INSERT INTO incidents (site_id, started_at, error_message) VALUES (?, NOW(), ?)',
             [$siteId, $result['error_message']]
         );
         Alert::send($site, $result, 'down');
@@ -81,18 +81,26 @@ foreach ($sites as $site) {
     } elseif ($result['status'] === 'up' && $prevStatus === 'down') {
         // Site just came back UP — close the open incident
         $openIncident = Database::fetchOne(
-            'SELECT id, started_at FROM incident_log WHERE site_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1',
+            'SELECT id, started_at FROM incidents WHERE site_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1',
             [$siteId]
         );
         if ($openIncident) {
             $duration = time() - strtotime($openIncident['started_at']);
             Database::execute(
-                'UPDATE incident_log SET ended_at = NOW(), duration_seconds = ? WHERE id = ?',
+                'UPDATE incidents SET ended_at = NOW(), duration_seconds = ? WHERE id = ?',
                 [$duration, $openIncident['id']]
             );
         }
         Alert::send($site, $result, 'recovery');
         echo "  [UP]   {$site['name']}: recovered" . PHP_EOL;
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. SSL Expiry Alert: check if expiring within 10 days
+    // -------------------------------------------------------------------------
+    if ($result['ssl_expiry_days'] !== null && $result['ssl_expiry_days'] <= 10) {
+        Alert::send($site, $result, 'ssl_expiry');
+        echo "  [SSL]  {$site['name']}: expiring in {$result['ssl_expiry_days']} days" . PHP_EOL;
     }
 
     $checked++;

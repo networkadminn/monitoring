@@ -68,25 +68,37 @@ class Checker {
             CURLOPT_SSL_VERIFYPEER => false, // SSL checked separately
             CURLOPT_USERAGENT      => 'SiteMonitor/1.0',
             CURLOPT_NOBODY         => false,
+            CURLOPT_CERTINFO       => true, // Capture SSL info
         ]);
 
         $response     = curl_exec($ch);
         $httpCode     = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError    = curl_error($ch);
+        
+        // Extract SSL info if HTTPS
+        $sslDays = null;
+        if (strpos($site['url'], 'https://') === 0) {
+            $certInfo = curl_getinfo($ch, CURLINFO_CERTINFO);
+            if (!empty($certInfo) && isset($certInfo[0]['Expire date'])) {
+                $expiryTs = strtotime($certInfo[0]['Expire date']);
+                $sslDays  = (int) ceil(($expiryTs - time()) / 86400);
+            }
+        }
+        
         curl_close($ch);
 
         $responseTime = round((microtime(true) - $start) * 1000, 2);
         $expected     = (int) ($site['expected_status'] ?? 200);
 
         if ($curlError) {
-            return ['status' => 'down', 'response_time' => $responseTime, 'error_message' => "cURL error: $curlError"];
+            return ['status' => 'down', 'response_time' => $responseTime, 'error_message' => "cURL error: $curlError", 'ssl_expiry_days' => $sslDays];
         }
 
         if ($httpCode !== $expected) {
-            return ['status' => 'down', 'response_time' => $responseTime, 'error_message' => "Expected HTTP $expected, got $httpCode"];
+            return ['status' => 'down', 'response_time' => $responseTime, 'error_message' => "Expected HTTP $expected, got $httpCode", 'ssl_expiry_days' => $sslDays];
         }
 
-        return ['status' => 'up', 'response_time' => $responseTime];
+        return ['status' => 'up', 'response_time' => $responseTime, 'ssl_expiry_days' => $sslDays];
     }
 
     // -------------------------------------------------------------------------
