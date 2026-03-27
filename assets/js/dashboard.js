@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Main loader ───────────────────────────────────────────────────────────
 async function loadDashboard() {
+  console.log('loadDashboard started');
   const overlay = document.getElementById('sites-loading-overlay');
   if (overlay) overlay.classList.add('active');
 
@@ -108,7 +109,9 @@ async function loadDashboard() {
     } 
     
     if (isSitesPage) {
+      console.log('Loading sites for table view...');
       let sites = await apiFetch('sites');
+      console.log('API sites fetched:', sites.length);
       
       // Apply URL-based filtering and sidebar highlighting
       if (filterType || filterTag) {
@@ -134,6 +137,7 @@ async function loadDashboard() {
       }
 
       sitesData = sites;
+      console.log('Rendering sites table with:', sites.length, 'sites');
       renderSitesTable(sites);
     }
 

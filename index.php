@@ -32,7 +32,7 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-  <link rel="stylesheet" href="assets/css/dashboard.css?v=1.0.2">
+  <link rel="stylesheet" href="assets/css/dashboard.css?v=1.0.3">
 </head>
 <body>
 <div class="layout">
@@ -288,6 +288,6 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="assets/js/dashboard.js?v=1.0.2"></script>
+<script src="assets/js/dashboard.js?v=1.0.3"></script>
 </body>
 </html>
