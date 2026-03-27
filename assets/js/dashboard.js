@@ -83,6 +83,7 @@ function renderSitesTable(sites) {
     const checked = s.last_checked ? timeAgo(s.last_checked) : 'Never';
 
     return `<tr>
+      <td><input type="checkbox" class="site-checkbox" data-id="${s.id}" data-name="${esc(s.name)}"></td>
       <td><a href="site_details.php?id=${s.id}" class="text-blue">${esc(s.name)}</a></td>
       <td class="truncate text-muted">${esc(s.url)}</td>
       <td><span class="badge ${s.status || 'warning'}">${s.status || 'unknown'}</span></td>
@@ -108,9 +109,49 @@ function renderSitesTable(sites) {
     }
     $('#sites-table').DataTable({
       pageLength: 25,
-      order: [[2, 'asc']],
-      columnDefs: [{ orderable: false, targets: 6 }],
+      order: [[3, 'asc']],
+      columnDefs: [{ orderable: false, targets: [0, 7] }],
     });
+  }
+
+  // Wire up checkboxes after table render
+  bindCheckboxEvents();
+}
+
+// ── Checkbox / bulk-delete wiring ─────────────────────────────────────────
+function bindCheckboxEvents() {
+  const selectAll  = document.getElementById('select-all-sites');
+  const bulkBtn    = document.getElementById('btn-bulk-delete');
+  const bulkCount  = document.getElementById('bulk-count');
+
+  function updateBulkBtn() {
+    const checked = document.querySelectorAll('.site-checkbox:checked');
+    const n = checked.length;
+    if (bulkBtn) { bulkBtn.style.display = n > 0 ? '' : 'none'; }
+    if (bulkCount) bulkCount.textContent = n;
+  }
+
+  if (selectAll) {
+    selectAll.checked = false;
+    selectAll.addEventListener('change', () => {
+      document.querySelectorAll('.site-checkbox').forEach(cb => cb.checked = selectAll.checked);
+      updateBulkBtn();
+    });
+  }
+
+  document.querySelectorAll('.site-checkbox').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const all  = document.querySelectorAll('.site-checkbox');
+      const done = document.querySelectorAll('.site-checkbox:checked');
+      if (selectAll) selectAll.checked = all.length === done.length;
+      updateBulkBtn();
+    });
+  });
+
+  if (bulkBtn) {
+    // Remove old listener to avoid duplicates
+    bulkBtn.replaceWith(bulkBtn.cloneNode(true));
+    document.getElementById('btn-bulk-delete').addEventListener('click', bulkDeleteSites);
   }
 }
 
@@ -368,6 +409,24 @@ async function deleteSite(id, name) {
     loadDashboard();
   } catch (err) {
     showToast('Delete failed: ' + err.message, 'error');
+  }
+}
+
+async function bulkDeleteSites() {
+  const checked = document.querySelectorAll('.site-checkbox:checked');
+  if (!checked.length) return;
+
+  const ids   = [...checked].map(cb => parseInt(cb.dataset.id));
+  const names = [...checked].map(cb => cb.dataset.name).join(', ');
+
+  if (!confirm(`Delete ${ids.length} site(s)?\n\n${names}\n\nThis cannot be undone.`)) return;
+
+  try {
+    const result = await apiPost('bulk_delete_sites', { ids });
+    showToast(`${result.deleted} site(s) deleted`, 'success');
+    loadDashboard();
+  } catch (err) {
+    showToast('Bulk delete failed: ' + err.message, 'error');
   }
 }
 

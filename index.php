@@ -7,19 +7,10 @@ define('MONITOR_ROOT', __DIR__);
 require_once MONITOR_ROOT . '/config.php';
 require_once MONITOR_ROOT . '/includes/Database.php';
 require_once MONITOR_ROOT . '/includes/Statistics.php';
+require_once MONITOR_ROOT . '/includes/auth.php';
 
 session_start();
-
-// Basic auth
-if (DASHBOARD_AUTH) {
-    if (!isset($_SERVER['PHP_AUTH_USER']) ||
-        $_SERVER['PHP_AUTH_USER'] !== DASHBOARD_USER ||
-        !hash_equals(DASHBOARD_PASS, $_SERVER['PHP_AUTH_PW'] ?? '')) {
-        header('WWW-Authenticate: Basic realm="Monitor"');
-        http_response_code(401);
-        exit('Unauthorized');
-    }
-}
+requireLogin();
 
 // CSRF token
 if (empty($_SESSION['csrf_token'])) {
@@ -69,6 +60,10 @@ try {
         <span>Settings</span>
       </a>
     </nav>
+    <div class="sidebar-footer">
+      <span class="sidebar-user"><?= htmlspecialchars($_SESSION['user'] ?? 'admin') ?></span>
+      <a href="logout.php" class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%;text-align:center">Sign Out</a>
+    </div>
   </aside>
 
   <!-- Main content -->
@@ -81,6 +76,7 @@ try {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           Refresh
         </button>
+        <button class="btn btn-danger" id="btn-bulk-delete" style="display:none">Delete Selected (<span id="bulk-count">0</span>)</button>
         <button class="btn btn-primary" id="btn-add-site">+ Add Site</button>
       </div>
     </div>
@@ -156,6 +152,7 @@ try {
       <table id="sites-table">
         <thead>
           <tr>
+            <th><input type="checkbox" id="select-all-sites" title="Select all"></th>
             <th>Name</th>
             <th>URL</th>
             <th>Status</th>

@@ -23,10 +23,11 @@ define('ALERT_COOLDOWN', 3600);   // seconds between repeat alerts per site
 define('CHECK_TIMEOUT', 10);       // seconds before a check times out
 define('LOG_RETENTION_DAYS', 90);  // days to keep raw logs
 
-// Dashboard basic-auth (set to false to disable)
-define('DASHBOARD_AUTH', false);
+// Dashboard session auth
+// To generate a new hash: php -r "echo password_hash('yourpassword', PASSWORD_BCRYPT);"
+define('DASHBOARD_AUTH', true);
 define('DASHBOARD_USER', 'admin');
-define('DASHBOARD_PASS', 'changeme');
+define('DASHBOARD_PASS', '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'); // password: changeme
 
 // App base URL (no trailing slash)
 define('APP_URL', 'https://monitoring.euclideesolutions.com');

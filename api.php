@@ -7,15 +7,16 @@ define('MONITOR_ROOT', __DIR__);
 require_once MONITOR_ROOT . '/config.php';
 require_once MONITOR_ROOT . '/includes/Database.php';
 require_once MONITOR_ROOT . '/includes/Statistics.php';
+require_once MONITOR_ROOT . '/includes/auth.php';
 
 session_start();
 
 header('Content-Type: application/json');
 header('X-Content-Type-Options: nosniff');
 
-// Basic auth check
-if (DASHBOARD_AUTH) {
-    requireAuth();
+// Session auth check
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    jsonError('Unauthorized', 401);
 }
 
 // CSRF check for mutating requests
@@ -130,6 +131,17 @@ try {
             jsonOk(['deleted' => $id]);
             break;
 
+        // Bulk delete sites
+        case 'bulk_delete_sites':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            $data = json_decode(file_get_contents('php://input'), true);
+            $ids  = array_filter(array_map('intval', $data['ids'] ?? []), fn($i) => $i > 0);
+            if (empty($ids)) jsonError('No valid IDs provided', 400);
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            Database::execute("DELETE FROM sites WHERE id IN ($placeholders)", $ids);
+            jsonOk(['deleted' => count($ids)]);
+            break;
+
         // Export logs as CSV (returns JSON array for client-side CSV generation)
         case 'export_logs':
             $id   = (int) ($_GET['id'] ?? 0);
@@ -199,15 +211,4 @@ function jsonError(string $msg, int $code = 400): never {
     http_response_code($code);
     echo json_encode(['success' => false, 'error' => $msg]);
     exit;
-}
-
-function requireAuth(): void {
-    if (!isset($_SERVER['PHP_AUTH_USER']) ||
-        $_SERVER['PHP_AUTH_USER'] !== DASHBOARD_USER ||
-        !hash_equals(DASHBOARD_PASS, $_SERVER['PHP_AUTH_PW'] ?? '')) {
-        header('WWW-Authenticate: Basic realm="Monitor"');
-        http_response_code(401);
-        echo json_encode(['error' => 'Unauthorized']);
-        exit;
-    }
 }

@@ -2,17 +2,10 @@
 define('MONITOR_ROOT', __DIR__);
 require_once MONITOR_ROOT . '/config.php';
 require_once MONITOR_ROOT . '/includes/Database.php';
+require_once MONITOR_ROOT . '/includes/auth.php';
 
 session_start();
-
-if (DASHBOARD_AUTH) {
-    if (!isset($_SERVER['PHP_AUTH_USER']) ||
-        $_SERVER['PHP_AUTH_USER'] !== DASHBOARD_USER ||
-        !hash_equals(DASHBOARD_PASS, $_SERVER['PHP_AUTH_PW'] ?? '')) {
-        header('WWW-Authenticate: Basic realm="Monitor"');
-        http_response_code(401); exit('Unauthorized');
-    }
-}
+requireLogin();
 
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -57,6 +50,10 @@ $diskFree    = function_exists('disk_free_space') ? round(disk_free_space('/') /
         <span>Settings</span>
       </a>
     </nav>
+    <div class="sidebar-footer">
+      <span class="sidebar-user"><?= htmlspecialchars($_SESSION['user'] ?? 'admin') ?></span>
+      <a href="logout.php" class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%;text-align:center">Sign Out</a>
+    </div>
   </aside>
 
   <main class="main">
