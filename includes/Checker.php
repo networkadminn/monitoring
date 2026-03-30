@@ -66,7 +66,7 @@ class Checker {
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS      => 5,
             CURLOPT_SSL_VERIFYPEER => false, // SSL checked separately
-            CURLOPT_USERAGENT      => 'SiteMonitor/1.0',
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SiteMonitor/1.1',
             CURLOPT_NOBODY         => false,
             CURLOPT_CERTINFO       => true, // Capture SSL info
         ]);
@@ -192,7 +192,7 @@ class Checker {
 
         $context = stream_context_create(['http' => [
             'timeout'     => CHECK_TIMEOUT,
-            'user_agent'  => 'SiteMonitor/1.0',
+            'user_agent'  => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SiteMonitor/1.1',
             'ignore_errors' => true,
         ]]);
 
