@@ -18,6 +18,21 @@ header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
 
+// Rate limiting: simple per-session check
+function checkRateLimit(string $action, int $maxPerMinute = 60): bool {
+    $key = "rate_limit_{$action}";
+    if (!isset($_SESSION[$key])) {
+        $_SESSION[$key] = ['count' => 0, 'reset_at' => time() + 60];
+    }
+
+    if (time() >= $_SESSION[$key]['reset_at']) {
+        $_SESSION[$key] = ['count' => 0, 'reset_at' => time() + 60];
+    }
+
+    $_SESSION[$key]['count']++;
+    return $_SESSION[$key]['count'] <= $maxPerMinute;
+}
+
 // Session auth check
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     jsonError('Unauthorized', 401);
@@ -152,6 +167,9 @@ try {
         // Test connection before saving
         case 'test_connection':
             if ($method !== 'POST') jsonError('POST required', 405);
+            if (!checkRateLimit('test_connection', 30)) {
+                jsonError('Rate limit exceeded for connection tests (30 per minute)', 429);
+            }
             $data = json_decode(file_get_contents('php://input'), true);
             $result = Checker::check($data);
             jsonOk($result);
@@ -160,6 +178,9 @@ try {
         // Immediate check for an existing site
         case 'check_site':
             if ($method !== 'POST') jsonError('POST required', 405);
+            if (!checkRateLimit('check_site', 20)) {
+                jsonError('Rate limit exceeded for immediate checks (20 per minute)', 429);
+            }
             $payload = json_decode(file_get_contents('php://input'), true);
             $siteId  = (int) ($payload['id'] ?? 0);
             if (!$siteId) jsonError('Missing site id', 400);
@@ -242,6 +263,9 @@ try {
         // Run cron manually
         case 'run_cron':
             if ($method !== 'POST') jsonError('POST required', 405);
+            if (!checkRateLimit('run_cron', 5)) {
+                jsonError('Rate limit exceeded for manual cron (5 per minute)', 429);
+            }
             $output = [];
             $retval = 0;
             $php     = defined('PHP_BINARY') ? PHP_BINARY : 'php';

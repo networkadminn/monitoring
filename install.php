@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS logs (
     ssl_expiry_days  SMALLINT        NULL,
     created_at       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_site_created (site_id, created_at),
+    INDEX idx_site_created_desc (site_id, created_at DESC),
     INDEX idx_created (created_at),
     FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -127,6 +128,38 @@ SQL;
             $messages[] = 'Migration: Renamed incident_log table to incidents.';
         } catch (Exception $e) {
             // Table doesn't exist, ignore
+        }
+
+        // Add missing indexes for performance (Phase 1 optimization)
+        try {
+            $indexes = $pdo->query(
+                "SELECT DISTINCT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS
+                 WHERE TABLE_SCHEMA = '" . DB_NAME . "' AND TABLE_NAME = 'logs'"
+            )->fetchAll(PDO::FETCH_COLUMN);
+            
+            if (!in_array('idx_site_created_desc', $indexes)) {
+                $pdo->exec('ALTER TABLE logs ADD INDEX idx_site_created_desc (site_id, created_at DESC)');
+                $messages[] = 'Migration: Added performance index idx_site_created_desc to logs table.';
+            }
+        } catch (Exception $e) {
+            error_log('Index migration skipped: ' . $e->getMessage());
+        }
+
+        // Add check constraints for data integrity (Phase 2 validation)
+        try {
+            $pdo->exec('ALTER TABLE sites ADD CONSTRAINT check_port_requires_host 
+                        CHECK (check_type != "port" OR hostname IS NOT NULL)');
+            $messages[] = 'Migration: Added check constraint for port monitoring.';
+        } catch (Exception $e) {
+            // Constraint may already exist
+        }
+
+        try {
+            $pdo->exec('ALTER TABLE sites ADD CONSTRAINT check_keyword_requires_keyword 
+                        CHECK (check_type != "keyword" OR keyword IS NOT NULL)');
+            $messages[] = 'Migration: Added check constraint for keyword monitoring.';
+        } catch (Exception $e) {
+            // Constraint may already exist
         }
 
         // ── Sample data ───────────────────────────────────────────────────────

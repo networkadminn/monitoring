@@ -62,37 +62,53 @@ foreach ($sites as $site) {
     // -------------------------------------------------------------------------
     // 5. Incident tracking: detect transitions
     // -------------------------------------------------------------------------
-    $prevLog = Database::fetchOne(
-        'SELECT status FROM logs WHERE site_id = ? ORDER BY created_at DESC LIMIT 1 OFFSET 1',
-        [$siteId]
-    );
-    $prevStatus = $prevLog['status'] ?? 'up';
+    try {
+        $db = Database::getInstance();
+        $db->beginTransaction();
 
-    if ($result['status'] === 'down' && $prevStatus !== 'down') {
-        // Site just went DOWN — open a new incident
-        Database::execute(
-            'INSERT INTO incidents (site_id, started_at, error_message) VALUES (?, NOW(), ?)',
-            [$siteId, $result['error_message']]
-        );
-        Alert::send($site, $result, 'down');
-        echo "  [DOWN] {$site['name']}: {$result['error_message']}" . PHP_EOL;
-        $errors++;
-
-    } elseif ($result['status'] === 'up' && $prevStatus === 'down') {
-        // Site just came back UP — close the open incident
-        $openIncident = Database::fetchOne(
-            'SELECT id, started_at FROM incidents WHERE site_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1',
+        $prevLog = Database::fetchOne(
+            'SELECT status FROM logs WHERE site_id = ? ORDER BY created_at DESC LIMIT 1 OFFSET 1',
             [$siteId]
         );
-        if ($openIncident) {
-            $duration = time() - strtotime($openIncident['started_at']);
-            Database::execute(
-                'UPDATE incidents SET ended_at = NOW(), duration_seconds = ? WHERE id = ?',
-                [$duration, $openIncident['id']]
+        $prevStatus = $prevLog['status'] ?? 'up';
+
+        if ($result['status'] === 'down' && $prevStatus !== 'down') {
+            // Site just went DOWN — open a new incident
+            $existingIncident = Database::fetchOne(
+                'SELECT id FROM incidents WHERE site_id = ? AND ended_at IS NULL LIMIT 1',
+                [$siteId]
             );
+            if (!$existingIncident) {
+                Database::execute(
+                    'INSERT INTO incidents (site_id, started_at, error_message) VALUES (?, NOW(), ?)',
+                    [$siteId, $result['error_message']]
+                );
+                Alert::send($site, $result, 'down');
+                echo "  [DOWN] {$site['name']}: {$result['error_message']}" . PHP_EOL;
+                $errors++;
+            }
+
+        } elseif ($result['status'] === 'up' && $prevStatus === 'down') {
+            // Site just came back UP — close the open incident
+            $openIncident = Database::fetchOne(
+                'SELECT id, started_at FROM incidents WHERE site_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1',
+                [$siteId]
+            );
+            if ($openIncident) {
+                $duration = time() - strtotime($openIncident['started_at']);
+                Database::execute(
+                    'UPDATE incidents SET ended_at = NOW(), duration_seconds = ? WHERE id = ?',
+                    [$duration, $openIncident['id']]
+                );
+            }
+            Alert::send($site, $result, 'recovery');
+            echo "  [UP]   {$site['name']}: recovered" . PHP_EOL;
         }
-        Alert::send($site, $result, 'recovery');
-        echo "  [UP]   {$site['name']}: recovered" . PHP_EOL;
+
+        $db->commit();
+    } catch (Exception $e) {
+        $db->rollBack();
+        echo "  [ERROR] Incident tracking failed: {$e->getMessage()}" . PHP_EOL;
     }
 
     // -------------------------------------------------------------------------

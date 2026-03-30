@@ -175,7 +175,7 @@ class Checker {
     private static function checkDns(array $site): array {
         $start    = microtime(true);
         $host     = $site['hostname'] ?: parse_url($site['url'], PHP_URL_HOST);
-        $records  = @dns_get_record($host, DNS_A | DNS_AAAA | DNS_MX);
+        $records  = dns_get_record($host, DNS_A | DNS_AAAA | DNS_MX) ?: [];
         $responseTime = round((microtime(true) - $start) * 1000, 2);
 
         if (empty($records)) {
@@ -207,7 +207,7 @@ class Checker {
             'ignore_errors' => true,
         ]]);
 
-        $body = @file_get_contents($site['url'], false, $context);
+        $body = file_get_contents($site['url'], false, $context) ?: false;
         $responseTime = round((microtime(true) - $start) * 1000, 2);
 
         if ($body === false) {
