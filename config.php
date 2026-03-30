@@ -32,5 +32,13 @@ define('DASHBOARD_PASS', '$2y$10$aeACh1P1WjrZMc1klpzdjel2xVIBIz.p70JjEM.x0xMBAgS
 // App base URL (no trailing slash)
 define('APP_URL', 'https://monitoring.euclideesolutions.com');
 
+// Optional advanced alert integrations
+define('ENABLE_SMS_ALERTS', false);
+define('SMS_API_ENDPOINT', '');
+define('SMS_API_KEY', '');
+define('ENABLE_TELEGRAM_ALERTS', false);
+define('TELEGRAM_BOT_TOKEN', '');
+define('TELEGRAM_CHAT_ID', '');
+
 // Timezone
 date_default_timezone_set('UTC');

@@ -28,8 +28,65 @@ class Alert {
             self::sendEmail($site['alert_email'], $subject, $body);
         }
 
+        // SMS
+        if (ENABLE_SMS_ALERTS && !empty($site['alert_phone'])) {
+            self::sendSms($site['alert_phone'], "{$subject} - {$site['url']} - {$checkResult['error_message']}");
+        }
+
+        // Telegram
+        if (ENABLE_TELEGRAM_ALERTS && !empty($site['alert_telegram'])) {
+            self::sendTelegram($site['alert_telegram'], "{$subject} - {$site['url']} - {$checkResult['error_message']}");
+        }
+
         // Record that we sent this alert (for cooldown)
         self::recordAlert($siteId, $alertType);
+    }
+
+    private static function sendSms(string $phone, string $message): void {
+        if (empty(SMS_API_ENDPOINT) || empty(SMS_API_KEY)) {
+            error_log('[Alert] SMS delivery not configured.');
+            return;
+        }
+
+        // Example HTTP API: POST JSON
+        $data = json_encode(['to' => $phone, 'message' => $message, 'api_key' => SMS_API_KEY]);
+
+        $ch = curl_init(SMS_API_ENDPOINT);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_POSTFIELDS     => $data,
+            CURLOPT_TIMEOUT        => CHECK_TIMEOUT,
+        ]);
+        $resp = curl_exec($ch);
+        if (curl_errno($ch)) {
+            error_log('[Alert] SMS send failed: ' . curl_error($ch));
+        }
+        curl_close($ch);
+    }
+
+    private static function sendTelegram(string $chatId, string $message): void {
+        if (empty(TELEGRAM_BOT_TOKEN)) {
+            error_log('[Alert] Telegram bot token not configured.');
+            return;
+        }
+
+        $url = 'https://api.telegram.org/bot' . urlencode(TELEGRAM_BOT_TOKEN) . '/sendMessage';
+        $payload = http_build_query(['chat_id' => $chatId, 'text' => $message]);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_TIMEOUT        => CHECK_TIMEOUT,
+        ]);
+        $resp = curl_exec($ch);
+        if (curl_errno($ch)) {
+            error_log('[Alert] Telegram send failed: ' . curl_error($ch));
+        }
+        curl_close($ch);
     }
 
     // -------------------------------------------------------------------------

@@ -44,16 +44,41 @@ try {
 
         // All sites with latest status
         case 'sites':
-            $sites = Database::fetchAll(
-                'SELECT s.id, s.name, s.url, s.check_type, s.uptime_percentage, s.tags,
-                        l.status, l.response_time, l.error_message, l.ssl_expiry_days, l.created_at AS last_checked
-                 FROM sites s
-                 LEFT JOIN logs l ON l.id = (
-                     SELECT id FROM logs WHERE site_id = s.id ORDER BY created_at DESC LIMIT 1
-                 )
-                 WHERE s.is_active = 1
-                 ORDER BY s.name ASC'
-            );
+            $filterType = $_GET['type'] ?? '';
+            $filterTag  = $_GET['tag'] ?? '';
+
+            $where = ['s.is_active = 1'];
+            $params = [];
+
+            if ($filterType) {
+                switch ($filterType) {
+                    case 'websites':
+                        $where[] = "s.check_type IN ('http','keyword','ssl')";
+                        break;
+                    case 'ssl':
+                        $where[] = "s.check_type = 'ssl'";
+                        break;
+                    case 'ports':
+                        $where[] = "s.check_type = 'port'";
+                        break;
+                }
+            }
+
+            if ($filterTag) {
+                $where[] = 'FIND_IN_SET(?, s.tags) > 0';
+                $params[] = $filterTag;
+            }
+
+            $query = 'SELECT s.id, s.name, s.url, s.check_type, s.uptime_percentage, s.tags,
+                            l.status, l.response_time, l.error_message, l.ssl_expiry_days, l.created_at AS last_checked
+                     FROM sites s
+                     LEFT JOIN logs l ON l.id = (
+                         SELECT id FROM logs WHERE site_id = s.id ORDER BY created_at DESC LIMIT 1
+                     )
+                     WHERE ' . implode(' AND ', $where) . '
+                     ORDER BY s.name ASC';
+
+            $sites = Database::fetchAll($query, $params);
             jsonOk($sites);
             break;
 
@@ -130,6 +155,28 @@ try {
             $data = json_decode(file_get_contents('php://input'), true);
             $result = Checker::check($data);
             jsonOk($result);
+            break;
+
+        // Immediate check for an existing site
+        case 'check_site':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            $payload = json_decode(file_get_contents('php://input'), true);
+            $siteId  = (int) ($payload['id'] ?? 0);
+            if (!$siteId) jsonError('Missing site id', 400);
+
+            $site = Database::fetchOne('SELECT * FROM sites WHERE id = ?', [$siteId]);
+            if (!$site) jsonError('Site not found', 404);
+
+            $result = Checker::check($site);
+            Database::execute(
+                'INSERT INTO logs (site_id, status, response_time, error_message, ssl_expiry_days, created_at)
+                 VALUES (?, ?, ?, ?, ?, NOW())',
+                [$siteId, $result['status'], $result['response_time'], $result['error_message'], $result['ssl_expiry_days']]
+            );
+            $uptime = Statistics::getUptime($siteId, 30);
+            Database::execute('UPDATE sites SET uptime_percentage = ? WHERE id = ?', [$uptime, $siteId]);
+
+            jsonOk(['result' => $result, 'uptime_30d' => $uptime]);
             break;
 
         // Save / update a site
