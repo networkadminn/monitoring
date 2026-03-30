@@ -298,6 +298,16 @@ function addSite(array $d): void {
     if (empty($clean['name'])) jsonError('Name is required');
     if (empty($clean['url'])) jsonError('URL is required');
 
+    if (!empty($clean['alert_email'])) {
+        $split = array_filter(array_map('trim', explode(',', $clean['alert_email'])));
+        foreach ($split as $email) {
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                jsonError('Invalid alert email: ' . htmlspecialchars($email));
+            }
+        }
+        $clean['alert_email'] = implode(',', $split);
+    }
+
     $allowedTypes = ['http','ssl','port','dns','keyword'];
     if (!in_array($clean['check_type'], $allowedTypes, true)) {
         jsonError('Invalid check type');
@@ -354,6 +364,16 @@ function updateSite(array $d): void {
 
     if (empty($clean['name'])) jsonError('Name is required');
     if (empty($clean['url'])) jsonError('URL is required');
+
+    if (!empty($clean['alert_email'])) {
+        $split = array_filter(array_map('trim', explode(',', $clean['alert_email'])));
+        foreach ($split as $email) {
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                jsonError('Invalid alert email: ' . htmlspecialchars($email));
+            }
+        }
+        $clean['alert_email'] = implode(',', $split);
+    }
 
     $allowedTypes = ['http','ssl','port','dns','keyword'];
     if (!in_array($clean['check_type'], $allowedTypes, true)) {

@@ -25,7 +25,14 @@ class Alert {
 
         // Email
         if (!empty($site['alert_email'])) {
-            self::sendEmail($site['alert_email'], $subject, $body);
+            $emails = array_filter(array_map('trim', explode(',', $site['alert_email'])));
+            foreach ($emails as $to) {
+                if (filter_var($to, FILTER_VALIDATE_EMAIL)) {
+                    self::sendEmail($to, $subject, $body);
+                } else {
+                    error_log('[Alert] Skipping invalid alert email: ' . $to);
+                }
+            }
         }
 
         // SMS
