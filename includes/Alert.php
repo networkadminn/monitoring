@@ -181,6 +181,15 @@ HTML;
             return;
         }
 
+        $to = filter_var(trim($to), FILTER_SANITIZE_EMAIL);
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            error_log('[Alert] Invalid recipient email in sendEmail: ' . $to);
+            return;
+        }
+
+        // Prevent newline injection in subject
+        $subject = str_replace(["\r", "\n"], ' ', trim($subject));
+
         try {
             $mail = new PHPMailer(true);
             $mail->isSMTP();
@@ -195,7 +204,11 @@ HTML;
             $mail->isHTML(true);
             $mail->Subject = $subject;
             $mail->Body    = $htmlBody;
-            $mail->AltBody = strip_tags($htmlBody);
+
+            $plainBody = html_entity_decode(strip_tags($htmlBody));
+            $plainBody = preg_replace('/\s+/', ' ', trim($plainBody));
+            $mail->AltBody = $plainBody;
+
             $mail->send();
         } catch (MailException $e) {
             error_log('[Alert] Email failed: ' . $e->getMessage());
