@@ -17,16 +17,36 @@ session_start();
 // =============================================================================
 
 function validateEmail(string $email): bool {
-    // First, use PHP's built-in filter
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        return false;
-    }
-
-    // Additional checks for common issues
+    // Trim whitespace
     $email = trim($email);
 
     // Check length (RFC 5321 limit is 254 characters)
-    if (strlen($email) > 254) {
+    if (strlen($email) > 254 || strlen($email) < 3) {
+        return false;
+    }
+
+    // Basic format check - must contain exactly one @
+    if (substr_count($email, '@') !== 1) {
+        return false;
+    }
+
+    // Split into local and domain parts
+    $atPos = strpos($email, '@');
+    $local = substr($email, 0, $atPos);
+    $domain = substr($email, $atPos + 1);
+
+    // Check local and domain are not empty
+    if (empty($local) || empty($domain)) {
+        return false;
+    }
+
+    // Local part length check (RFC 5321 - max 64 characters)
+    if (strlen($local) > 64) {
+        return false;
+    }
+
+    // Domain length check
+    if (strlen($domain) > 253) {
         return false;
     }
 
@@ -35,33 +55,40 @@ function validateEmail(string $email): bool {
         return false;
     }
 
-    // Check that local part doesn't start or end with dot
-    $atPos = strpos($email, '@');
-    if ($atPos === false) {
+    // Local part cannot start or end with dot
+    if ($local[0] === '.' || $local[strlen($local) - 1] === '.') {
         return false;
     }
 
-    $local = substr($email, 0, $atPos);
-    $domain = substr($email, $atPos + 1);
-
-    if (empty($local) || empty($domain)) {
+    // Domain cannot start or end with dot or hyphen
+    if ($domain[0] === '.' || $domain[0] === '-' ||
+        $domain[strlen($domain) - 1] === '.' || $domain[strlen($domain) - 1] === '-') {
         return false;
     }
 
-    $localLen = strlen($local);
-    if ($localLen > 0 && ($local[0] === '.' || $local[$localLen - 1] === '.')) {
+    // Check for invalid characters in domain (only allow valid domain chars)
+    if (!preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/i', $domain)) {
         return false;
     }
 
-    // Check domain doesn't start or end with dot or hyphen
-    $domainLen = strlen($domain);
-    if ($domainLen > 0 && ($domain[0] === '.' || $domain[0] === '-' ||
-        $domain[$domainLen - 1] === '.' || $domain[$domainLen - 1] === '-')) {
+    // Comprehensive local part validation (RFC 5322 compliant)
+    // This allows: letters, digits, and special chars: !#$%&'*+-/=?^_`{|}~
+    // Local part can be quoted or unquoted
+    $localRegex = '/^(?:(?:[a-zA-Z0-9!#$%&\'*+\-\/=?^_`{|}~]+(?:\.[a-zA-Z0-9!#$%&\'*+\-\/=?^_`{|}~]+)*)|(?:"(?:\\\\[\x00-\x7F]|[^\\\\"])*"))$/';
+
+    if (!preg_match($localRegex, $local)) {
         return false;
     }
 
-    // Check for valid domain format (basic check)
-    if (!preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/', $domain)) {
+    // Domain must have at least one dot (unless it's a local domain)
+    // But allow localhost and IP addresses
+    if (strpos($domain, '.') === false && !preg_match('/^(?:localhost|(?:\d{1,3}\.){3}\d{1,3})$/i', $domain)) {
+        // Allow single-label domains for internal use, but flag as suspicious
+        // For strict validation, we could return false here
+    }
+
+    // Final PHP filter validation as backup
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         return false;
     }
 
