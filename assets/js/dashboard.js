@@ -1261,9 +1261,11 @@ function initTheme() {
     updateThemeIcons(false);
   }
   
-  // Set Chart.js defaults based on theme
-  Chart.defaults.color = isLight ? '#64748b' : '#7a87a8';
-  Chart.defaults.borderColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+  // Set Chart.js defaults based on theme (if Chart is available)
+  if (window.Chart) {
+    Chart.defaults.color = isLight ? '#64748b' : '#7a87a8';
+    Chart.defaults.borderColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+  }
 }
 
 function toggleTheme() {
@@ -1273,8 +1275,10 @@ function toggleTheme() {
   updateThemeIcons(isLight);
   
   // Update Chart.js defaults for the new theme
-  Chart.defaults.color = isLight ? '#64748b' : '#7a87a8';
-  Chart.defaults.borderColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+  if (window.Chart) {
+    Chart.defaults.color = isLight ? '#64748b' : '#7a87a8';
+    Chart.defaults.borderColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+  }
 
   // Reload dashboard to update charts with new colors
   if (typeof loadDashboard === 'function') {

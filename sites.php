@@ -168,7 +168,8 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
 
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="assets/js/dashboard.js?v=1.0.8"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="assets/js/dashboard.js?v=1.0.9"></script>
   <script>
     console.log('Sites page script block executed');
     document.addEventListener('DOMContentLoaded', () => {
