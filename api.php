@@ -12,6 +12,62 @@ require_once MONITOR_ROOT . '/includes/auth.php';
 
 session_start();
 
+// =============================================================================
+// Utility functions
+// =============================================================================
+
+function validateEmail(string $email): bool {
+    // First, use PHP's built-in filter
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return false;
+    }
+
+    // Additional checks for common issues
+    $email = trim($email);
+
+    // Check length (RFC 5321 limit is 254 characters)
+    if (strlen($email) > 254) {
+        return false;
+    }
+
+    // Check for consecutive dots
+    if (strpos($email, '..') !== false) {
+        return false;
+    }
+
+    // Check that local part doesn't start or end with dot
+    $atPos = strpos($email, '@');
+    if ($atPos === false) {
+        return false;
+    }
+
+    $local = substr($email, 0, $atPos);
+    $domain = substr($email, $atPos + 1);
+
+    if (empty($local) || empty($domain)) {
+        return false;
+    }
+
+    $localLen = strlen($local);
+    if ($localLen > 0 && ($local[0] === '.' || $local[$localLen - 1] === '.')) {
+        return false;
+    }
+
+    // Check domain doesn't start or end with dot or hyphen
+    $domainLen = strlen($domain);
+    if ($domainLen > 0 && ($domain[0] === '.' || $domain[0] === '-' ||
+        $domain[$domainLen - 1] === '.' || $domain[$domainLen - 1] === '-')) {
+        return false;
+    }
+
+    // Check for valid domain format (basic check)
+    if (!preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/', $domain)) {
+        return false;
+    }
+
+    return true;
+}
+
 header('Content-Type: application/json');
 header('X-Content-Type-Options: nosniff');
 header('Cache-Control: no-cache, no-store, must-revalidate');
@@ -301,7 +357,7 @@ function addSite(array $d): void {
     if (!empty($clean['alert_email'])) {
         $split = array_filter(array_map('trim', explode(',', $clean['alert_email'])));
         foreach ($split as $email) {
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            if (!validateEmail($email)) {
                 jsonError('Invalid alert email: ' . htmlspecialchars($email));
             }
         }
@@ -368,7 +424,7 @@ function updateSite(array $d): void {
     if (!empty($clean['alert_email'])) {
         $split = array_filter(array_map('trim', explode(',', $clean['alert_email'])));
         foreach ($split as $email) {
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            if (!validateEmail($email)) {
                 jsonError('Invalid alert email: ' . htmlspecialchars($email));
             }
         }

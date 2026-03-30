@@ -10,8 +10,59 @@ use PHPMailer\PHPMailer\Exception as MailException;
 class Alert {
 
     // -------------------------------------------------------------------------
-    // Send all configured alerts for a site, respecting cooldown
+    // Improved email validation function
     // -------------------------------------------------------------------------
+    private static function validateEmail(string $email): bool {
+        // First, use PHP's built-in filter
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+
+        // Additional checks for common issues
+        $email = trim($email);
+
+        // Check length (RFC 5321 limit is 254 characters)
+        if (strlen($email) > 254) {
+            return false;
+        }
+
+        // Check for consecutive dots
+        if (strpos($email, '..') !== false) {
+            return false;
+        }
+
+        // Check that local part doesn't start or end with dot
+        $atPos = strpos($email, '@');
+        if ($atPos === false) {
+            return false;
+        }
+
+        $local = substr($email, 0, $atPos);
+        $domain = substr($email, $atPos + 1);
+
+        if (empty($local) || empty($domain)) {
+            return false;
+        }
+
+        $localLen = strlen($local);
+        if ($localLen > 0 && ($local[0] === '.' || $local[$localLen - 1] === '.')) {
+            return false;
+        }
+
+        // Check domain doesn't start or end with dot or hyphen
+        $domainLen = strlen($domain);
+        if ($domainLen > 0 && ($domain[0] === '.' || $domain[0] === '-' ||
+            $domain[$domainLen - 1] === '.' || $domain[$domainLen - 1] === '-')) {
+            return false;
+        }
+
+        // Check for valid domain format (basic check)
+        if (!preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/', $domain)) {
+            return false;
+        }
+
+        return true;
+    }
     public static function send(array $site, array $checkResult, string $event = 'down'): void {
         $siteId    = $site['id'];
         $alertType = $event; // 'down' or 'recovery'
@@ -27,7 +78,7 @@ class Alert {
         if (!empty($site['alert_email'])) {
             $emails = array_filter(array_map('trim', explode(',', $site['alert_email'])));
             foreach ($emails as $to) {
-                if (filter_var($to, FILTER_VALIDATE_EMAIL)) {
+                if (self::validateEmail($to)) {
                     self::sendEmail($to, $subject, $body);
                 } else {
                     error_log('[Alert] Skipping invalid alert email: ' . $to);
@@ -182,7 +233,7 @@ HTML;
         }
 
         $to = filter_var(trim($to), FILTER_SANITIZE_EMAIL);
-        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        if (!self::validateEmail($to)) {
             error_log('[Alert] Invalid recipient email in sendEmail: ' . $to);
             return;
         }
