@@ -127,7 +127,12 @@ async function loadDashboard() {
     if (isSitesPage) {
       console.log('Loading sites for table view...');
       let sites = await apiFetch('sites');
-      console.log('API sites fetched:', sites.length, sites);
+      
+      if (!sites || !Array.isArray(sites)) {
+        throw new Error('Invalid sites data received from API');
+      }
+
+      console.log('API sites fetched:', sites.length);
       
       // Apply URL-based filtering and sidebar highlighting
       if (filterType || filterTag) {
@@ -237,18 +242,25 @@ function renderHealthCards(h) {
 
 // ── Sites table ───────────────────────────────────────────────────────────
 function renderSitesTable(sites) {
+  console.log('renderSitesTable called with:', sites.length, 'sites');
+  
   // Destroy DataTable FIRST before touching the DOM
   if (sitesTable) {
+    console.log('Destroying existing DataTable');
     sitesTable.destroy();
     sitesTable = null;
   }
 
   const tbody = document.getElementById('sites-tbody');
-  if (!tbody) return;
+  if (!tbody) {
+    console.error('CRITICAL: sites-tbody element NOT found in DOM');
+    return;
+  }
 
-  if (!sites.length) {
+  if (!sites || !sites.length) {
+    console.warn('renderSitesTable: No sites to display');
     tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">
-      No monitors configured yet. Click "Add Monitor" to get started.
+      No monitors found for this view.
     </td></tr>`;
     return;
   }
@@ -336,6 +348,13 @@ function renderSitesTable(sites) {
   if (window.jQuery && $.fn.DataTable) {
     const tableEl = $('#sites-table');
     console.log('Initializing DataTable on #sites-table');
+    
+    // Safety check for empty tbody
+    if (tbody.rows.length === 0) {
+      console.warn('DataTable init skipped: tbody is empty');
+      return;
+    }
+
     sitesTable = tableEl.DataTable({
       pageLength: 25,
       stateSave: true,
@@ -1228,11 +1247,18 @@ async function renderSiteDetailsCharts(id) {
 
 // ── Theme management ──────────────────────────────────────────────────────
 function initTheme() {
-  const saved = localStorage.getItem('theme') || 'dark';
-  const isLight = saved === 'light';
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isLight = saved === 'light' || (!saved && !prefersDark);
+  
   if (isLight) {
+    document.documentElement.classList.add('light-theme');
     document.body.classList.add('light-theme');
     updateThemeIcons(true);
+  } else {
+    document.documentElement.classList.remove('light-theme');
+    document.body.classList.remove('light-theme');
+    updateThemeIcons(false);
   }
   
   // Set Chart.js defaults based on theme
@@ -1242,6 +1268,7 @@ function initTheme() {
 
 function toggleTheme() {
   const isLight = document.body.classList.toggle('light-theme');
+  document.documentElement.classList.toggle('light-theme', isLight);
   localStorage.setItem('theme', isLight ? 'light' : 'dark');
   updateThemeIcons(isLight);
   
@@ -1250,7 +1277,9 @@ function toggleTheme() {
   Chart.defaults.borderColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
 
   // Reload dashboard to update charts with new colors
-  loadDashboard();
+  if (typeof loadDashboard === 'function') {
+    loadDashboard();
+  }
 }
 
 function updateThemeIcons(isLight) {

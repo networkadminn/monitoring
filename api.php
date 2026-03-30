@@ -271,12 +271,14 @@ function updateSite(array $d): void {
 }
 
 function jsonOk(mixed $data): never {
-    echo json_encode(['success' => true, 'data' => $data]);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => true, 'data' => $data], JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
     exit;
 }
 
 function jsonError(string $msg, int $code = 400): never {
     http_response_code($code);
-    echo json_encode(['success' => false, 'error' => $msg]);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'error' => $msg], JSON_UNESCAPED_UNICODE);
     exit;
 }
