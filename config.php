@@ -14,7 +14,7 @@ define('DB_CHARSET', 'utf8mb4');
 define('SMTP_HOST', 'mail.euclideesolutions.com');
 define('SMTP_PORT', 465);
 define('SMTP_USER', 'no-reply@euclideesolutions.com');
-define('SMTP_PASS', '');
+define('SMTP_PASS', 'k4&Ie*U#xNMoufw7');
 define('FROM_EMAIL', 'no-reply@euclideesolutions.com');
 define('FROM_NAME', 'Site Monitor');
 
