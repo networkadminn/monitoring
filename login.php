@@ -49,14 +49,41 @@ $token = $_SESSION['login_token'];
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/dashboard.css">
   <style>
-    body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--bg); transition: background .3s; }
-    .login-box { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:40px; width:100%; max-width:380px; transition: background .3s, border-color .3s; }
-    .login-logo { display:flex; align-items:center; gap:10px; margin-bottom:28px; }
-    .login-logo svg { width:28px; height:28px; color:var(--blue); }
-    .login-logo span { font-size:20px; font-weight:700; color:var(--text); }
-    .login-title { font-size:22px; font-weight:700; margin-bottom:6px; color:var(--text); }
-    .login-sub { color:var(--muted); font-size:13px; margin-bottom:24px; }
-    .error-msg { background:rgba(239,68,68,0.12); border:1px solid var(--red); color:var(--red); border-radius:6px; padding:10px 14px; font-size:13px; margin-bottom:16px; }
+    html, body { height:100%; margin:0; font-family:'Inter',system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+    body { display:grid; place-items:center; min-height:100vh; overflow:hidden; background:linear-gradient(160deg, #0f172a 0%, #020617 100%); color:#fff; }
+    #bg-video {
+      position:fixed; inset:0; width:100%; height:100%; object-fit:cover; z-index:-3; filter:brightness(0.42) saturate(1.2);
+    }
+    #bg-overlay {
+      position:fixed; inset:0; z-index:-2;
+      background:linear-gradient(120deg, rgba(8,11,24,.45), rgba(18,22,50,.68));
+      pointer-events:none;
+    }
+    .login-box {
+      position:relative;
+      background:rgba(7, 17, 40, 0.72);
+      border:1px solid rgba(255,255,255,0.14);
+      border-radius:20px;
+      padding:36px;
+      width:95%;
+      max-width:420px;
+      box-shadow:0 18px 35px rgba(0,0,0,0.35);
+      backdrop-filter:blur(12px);
+      -webkit-backdrop-filter:blur(12px);
+      transition:transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+    }
+    .login-box:hover { transform:translateY(-2px); border-color:rgba(94,206,255,0.45); box-shadow:0 26px 40px rgba(0,0,0,0.45); }
+    .login-logo { display:flex; align-items:center; gap:10px; margin-bottom:24px; }
+    .login-logo svg { width:28px; height:28px; color:#60a5fa; }
+    .login-logo span { font-size:20px; font-weight:700; color:#e2e8f0; }
+    .login-title { font-size:26px; font-weight:700; margin-bottom:6px; color:#fff; }
+    .login-sub { color:#cbd5e1; font-size:14px; margin-bottom:24px; }
+    .error-msg { background:rgba(248,113,113,0.14); border:1px solid rgba(239,68,68,0.48); color:#fecaca; border-radius:8px; padding:10px 14px; font-size:13px; margin-bottom:16px; }
+    .form-group label { color:#cbd5e1; font-size:14px; margin-bottom:6px; display:block; }
+    .form-control { width:100%; padding:10px 12px; border:1px solid rgba(148,163,184,.32); border-radius:8px; background:rgba(15, 27, 55, 0.68); color:#e2e8f0; margin-bottom:16px; outline:none; transition:border-color .2s ease, box-shadow .2s ease; }
+    .form-control:focus { border-color:#60a5fa; box-shadow:0 0 0 2px rgba(96,165,250,0.22); }
+    .btn-primary { width:100%; padding:11px 14px; background:#0ea5e9; border:none; border-radius:8px; font-weight:700; color:#fff; cursor:pointer; transition:transform .2s ease, background .2s ease; }
+    .btn-primary:hover { background:#38bdf8; transform:translateY(-1px); }
   </style>
   <script>
     const saved = localStorage.getItem('theme') || 'dark';
@@ -64,7 +91,12 @@ $token = $_SESSION['login_token'];
   </script>
 </head>
 <body>
-<div class="login-box">
+  <video id="bg-video" autoplay playsinline muted loop>
+    <source src="https://cdn.coverr.co/videos/coverr-modern-city-at-night-2447/1080p.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+  <div id="bg-overlay"></div>
+  <div class="login-box">
   <div class="login-logo">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
