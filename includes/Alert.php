@@ -210,10 +210,19 @@ class Alert {
     // -------------------------------------------------------------------------
     // Build subject line
     // -------------------------------------------------------------------------
+        // -------------------------------------------------------------------------
+    // Build subject line with proper UTF-8 encoding
+    // -------------------------------------------------------------------------
     private static function buildSubject(array $site, array $result, string $event): string {
-        $icon = $event === 'recovery' ? '✅ RECOVERED' : ($event === 'ssl_expiry' ? '🎫 SSL EXPIRING' : '🚨 ALERT');
+        $icon = $event === 'recovery' ? '✅ RECOVERED' : ($event === 'ssl_expiry' ? '⚠️ SSL EXPIRING' : '🔴 DOWN ALERT');
         if ($event === 'ssl_expiry') {
-            return "$icon: {$site['name']} SSL expires in {$result['ssl_expiry_days']} days";
+            $subject = "$icon: {$site['name']} SSL expires in {$result['ssl_expiry_days']} days";
+        } else {
+            $subject = "$icon: {$site['name']} is " . ($event === 'recovery' ? 'back online' : 'DOWN');
+        }
+        // Encode subject for email to handle emojis properly
+        return mb_encode_mimeheader($subject, 'UTF-8', 'B');
+    }
         }
         return "$icon: {$site['name']} is " . ($event === 'recovery' ? 'back online' : 'DOWN');
     }
@@ -393,7 +402,15 @@ HTML;
     // -------------------------------------------------------------------------
     // Send email via PHPMailer
     // -------------------------------------------------------------------------
+        // -------------------------------------------------------------------------
+    // Send email via PHPMailer with proper UTF-8 encoding
+    // -------------------------------------------------------------------------
     private static function sendEmail(string $to, string $subject, string $htmlBody): void {
+        // Ensure autoloader is loaded
+        if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+            require_once __DIR__ . '/../vendor/autoload.php';
+        }
+        
         if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
             error_log('[Alert] PHPMailer not installed. Run: composer install');
             return;
@@ -405,31 +422,27 @@ HTML;
             return;
         }
 
-        // Prevent newline injection in subject
-        $subject = str_replace(["\r", "\n"], ' ', trim($subject));
-
         try {
-            $mail = new PHPMailer(true);
+            $mail = new PHPMailer\PHPMailer\PHPMailer(true);
             $mail->isSMTP();
             $mail->Host       = SMTP_HOST;
             $mail->SMTPAuth   = true;
             $mail->Username   = SMTP_USER;
             $mail->Password   = SMTP_PASS;
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // SSL on port 465
+            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
             $mail->Port       = SMTP_PORT;
+            $mail->CharSet    = 'UTF-8';
+            $mail->Encoding   = 'base64';
             $mail->setFrom(FROM_EMAIL, FROM_NAME);
             $mail->addAddress($to);
             $mail->isHTML(true);
             $mail->Subject = $subject;
             $mail->Body    = $htmlBody;
-
-            $plainBody = html_entity_decode(strip_tags($htmlBody));
-            $plainBody = preg_replace('/\s+/', ' ', trim($plainBody));
-            $mail->AltBody = $plainBody;
-
+            $mail->AltBody = strip_tags($htmlBody);
             $mail->send();
-        } catch (MailException $e) {
-            error_log('[Alert] Email failed: ' . $e->getMessage());
+            error_log("[Alert] Email sent to $to");
+        } catch (Exception $e) {
+            error_log('[Alert] Email failed: ' . $mail->ErrorInfo);
         }
     }
 }
