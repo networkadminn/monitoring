@@ -5,10 +5,18 @@
 const API = 'api.php';
 
 // Chart.js global defaults
-Chart.defaults.color = '#7a87a8';
-Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
 Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
 Chart.defaults.font.size = 12;
+
+function getChartColor(key) {
+  const isLight = document.body.classList.contains('light-theme');
+  const colors = {
+    text: isLight ? '#1e293b' : '#e4eaf6',
+    muted: isLight ? '#64748b' : '#7a87a8',
+    grid: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
+  };
+  return colors[key];
+}
 
 // ── State ─────────────────────────────────────────────────────────────────
 const charts = {};
@@ -25,6 +33,7 @@ window.addEventListener('error', (e) => {
 
 // ── Init ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   initCheckboxDelegation();
 
   // Load dashboard data if either dashboard or sites table is present
@@ -42,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-refresh')?.addEventListener('click', loadDashboard);
   document.getElementById('btn-run-cron')?.addEventListener('click', runManualCheck);
   document.getElementById('btn-bulk-delete')?.addEventListener('click', bulkDeleteSites);
+  document.getElementById('btn-theme-toggle')?.addEventListener('click', toggleTheme);
 
   // Modal save/cancel
   document.getElementById('modal-save')?.addEventListener('click', saveSite);
@@ -117,10 +127,11 @@ async function loadDashboard() {
     if (isSitesPage) {
       console.log('Loading sites for table view...');
       let sites = await apiFetch('sites');
-      console.log('API sites fetched:', sites.length);
+      console.log('API sites fetched:', sites.length, sites);
       
       // Apply URL-based filtering and sidebar highlighting
       if (filterType || filterTag) {
+        console.log('Applying filter:', { filterType, filterTag });
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
         
         if (filterType) {
@@ -130,12 +141,25 @@ async function loadDashboard() {
             activeNav.classList.add('active');
           }
 
+          const originalCount = sites.length;
           sites = sites.filter(s => {
-            if (filterType === 'websites') return ['http', 'keyword', 'ssl'].includes(s.check_type);
+            const ct = (s.check_type || 'http').toLowerCase();
+            if (filterType === 'websites') return ['http', 'keyword', 'ssl'].includes(ct);
             if (filterType === 'ssl') return (s.ssl_expiry_days !== null && s.ssl_expiry_days !== undefined);
-            if (filterType === 'ports') return s.check_type === 'port';
+            if (filterType === 'ports') return ct === 'port';
             return true;
           });
+          console.log(`Filtered from ${originalCount} to ${sites.length} sites for type "${filterType}"`);
+        }
+
+        if (filterTag) {
+          const originalCount = sites.length;
+          sites = sites.filter(s => {
+            if (!s.tags) return false;
+            const tagList = s.tags.toLowerCase().split(',').map(t => t.trim());
+            return tagList.includes(filterTag.toLowerCase());
+          });
+          console.log(`Filtered from ${originalCount} to ${sites.length} sites for tag "${filterTag}"`);
         }
       } else {
         // Highlight "All Monitors" if no filters
@@ -472,10 +496,25 @@ async function renderResponseTrendChart(sites) {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false } }, // Custom legend used
+      plugins: { 
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: () => getChartColor('surface'),
+          titleColor: () => getChartColor('text'),
+          bodyColor: () => getChartColor('text'),
+        }
+      },
       scales: {
-        y: { title: { display: true, text: 'ms' }, beginAtZero: true, grid: { color: 'rgba(255,255,255,0.03)' } },
-        x: { ticks: { maxTicksLimit: 12 }, grid: { display: false } },
+        y: { 
+          title: { display: true, text: 'Response Time (ms)', color: () => getChartColor('muted') }, 
+          beginAtZero: true,
+          grid: { color: () => getChartColor('grid') },
+          ticks: { color: () => getChartColor('muted') }
+        },
+        x: { 
+          grid: { display: false },
+          ticks: { color: () => getChartColor('muted'), maxTicksLimit: 12 }
+        }
       },
     },
   });
@@ -515,9 +554,25 @@ function renderSSLChart(sslData) {
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
+      plugins: { 
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: () => getChartColor('surface'),
+          titleColor: () => getChartColor('text'),
+          bodyColor: () => getChartColor('text'),
+        }
+      },
       scales: {
-        y: { title: { display: true, text: 'Days Remaining' }, beginAtZero: true },
+        y: { 
+          title: { display: true, text: 'Days Remaining', color: () => getChartColor('muted') }, 
+          beginAtZero: true,
+          grid: { color: () => getChartColor('grid') },
+          ticks: { color: () => getChartColor('muted') }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: () => getChartColor('muted') }
+        }
       },
     },
   });
@@ -554,7 +609,19 @@ function renderStatusTypesChart(sites) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'right', labels: { boxWidth: 12, padding: 15 } }
+        legend: { 
+          position: 'right', 
+          labels: { 
+            boxWidth: 12, 
+            padding: 15,
+            color: () => getChartColor('muted')
+          } 
+        },
+        tooltip: {
+          backgroundColor: () => getChartColor('surface'),
+          titleColor: () => getChartColor('text'),
+          bodyColor: () => getChartColor('text'),
+        }
       },
       cutout: '60%'
     }
@@ -584,10 +651,24 @@ function renderSystemUptimeChart(data) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { 
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: () => getChartColor('surface'),
+          titleColor: () => getChartColor('text'),
+          bodyColor: () => getChartColor('text'),
+        }
+      },
       scales: {
-        y: { min: 0, max: 100, ticks: { stepSize: 20 }, grid: { color: 'rgba(255,255,255,0.03)' } },
-        x: { grid: { display: false } }
+        y: { 
+          min: 0, max: 100, 
+          ticks: { stepSize: 20, color: () => getChartColor('muted') }, 
+          grid: { color: () => getChartColor('grid') } 
+        },
+        x: { 
+          grid: { display: false },
+          ticks: { color: () => getChartColor('muted') }
+        }
       },
     },
   });
@@ -648,10 +729,26 @@ async function renderHistogramChart(sites) {
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
+      plugins: { 
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: () => getChartColor('surface'),
+          titleColor: () => getChartColor('text'),
+          bodyColor: () => getChartColor('text'),
+        }
+      },
       scales: {
-        y: { title: { display: true, text: 'Count' }, beginAtZero: true },
-        x: { title: { display: true, text: 'Response Time' } },
+        y: { 
+          title: { display: true, text: 'Count', color: () => getChartColor('muted') }, 
+          beginAtZero: true,
+          grid: { color: () => getChartColor('grid') },
+          ticks: { color: () => getChartColor('muted') }
+        },
+        x: { 
+          title: { display: true, text: 'Response Time', color: () => getChartColor('muted') },
+          grid: { display: false },
+          ticks: { color: () => getChartColor('muted') }
+        },
       },
     },
   });
@@ -671,7 +768,7 @@ function renderGauge(score) {
     data: {
       datasets: [{
         data: [score, 100 - score],
-        backgroundColor: [color, 'rgba(255,255,255,0.05)'],
+        backgroundColor: [color, () => getChartColor('grid')],
         borderWidth: 0,
         circumference: 270,
         rotation: 225,
@@ -1126,5 +1223,41 @@ async function renderSiteDetailsCharts(id) {
     }
   } catch (err) {
     console.error('Failed to load site charts:', err);
+  }
+}
+
+// ── Theme management ──────────────────────────────────────────────────────
+function initTheme() {
+  const saved = localStorage.getItem('theme') || 'dark';
+  const isLight = saved === 'light';
+  if (isLight) {
+    document.body.classList.add('light-theme');
+    updateThemeIcons(true);
+  }
+  
+  // Set Chart.js defaults based on theme
+  Chart.defaults.color = isLight ? '#64748b' : '#7a87a8';
+  Chart.defaults.borderColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+}
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-theme');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  updateThemeIcons(isLight);
+  
+  // Update Chart.js defaults for the new theme
+  Chart.defaults.color = isLight ? '#64748b' : '#7a87a8';
+  Chart.defaults.borderColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+
+  // Reload dashboard to update charts with new colors
+  loadDashboard();
+}
+
+function updateThemeIcons(isLight) {
+  const sun = document.querySelector('.sun-icon');
+  const moon = document.querySelector('.moon-icon');
+  if (sun && moon) {
+    sun.style.display = isLight ? 'none' : 'block';
+    moon.style.display = isLight ? 'block' : 'none';
   }
 }

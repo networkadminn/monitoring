@@ -20,6 +20,22 @@
   --radius:    10px;
   --shadow:    0 4px 24px rgba(0,0,0,.5);
   --shadow-sm: 0 2px 8px rgba(0,0,0,.3);
+  --card-bg:   var(--surface);
+  --header-bg: var(--surface);
+}
+
+.light-theme {
+  --bg:        #f8fafc;
+  --surface:   #ffffff;
+  --surface2:  #f1f5f9;
+  --surface3:  #e2e8f0;
+  --border:    #cbd5e1;
+  --text:      #1e293b;
+  --muted:     #64748b;
+  --shadow:    0 4px 24px rgba(0,0,0,.08);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,.04);
+  --card-bg:   #ffffff;
+  --header-bg: #ffffff;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,6 +46,7 @@ body {
   color: var(--text);
   font-size: 14px;
   line-height: 1.6;
+  transition: background .3s, color .3s;
 }
 
 a { color: var(--blue); text-decoration: none; }
@@ -87,7 +104,9 @@ a:hover { text-decoration: underline; }
 
 .nav-item svg { flex-shrink: 0; }
 .nav-item:hover { color: var(--text); background: var(--surface2); text-decoration: none; }
-.nav-item.active { color: var(--text); background: rgba(59,130,246,.15); color: var(--blue); font-weight: 600; }
+.nav-item.active { color: var(--blue); background: rgba(59,130,246,.1); font-weight: 600; }
+
+.light-theme .nav-item.active { background: rgba(59,130,246,.08); }
 
 .sidebar-footer {
   margin-top: auto;
@@ -283,14 +302,14 @@ a:hover { text-decoration: underline; }
 }
 
 .card {
-  background: var(--surface);
+  background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 18px 20px;
   box-shadow: var(--shadow-sm);
   position: relative;
   overflow: hidden;
-  transition: transform .15s, box-shadow .15s;
+  transition: transform .15s, box-shadow .15s, background .3s, border-color .3s;
 }
 
 .card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
@@ -341,11 +360,12 @@ a:hover { text-decoration: underline; }
 }
 
 .chart-panel {
-  background: var(--surface);
+  background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 20px 24px;
   box-shadow: var(--shadow-sm);
+  transition: background .3s, border-color .3s;
 }
 
 .chart-panel.full { grid-column: 1 / -1; }
@@ -375,12 +395,13 @@ canvas { max-height: 260px; }
 
 /* ── Sites table panel ───────────────────────────────────────────────────── */
 .table-panel {
-  background: var(--surface);
+  background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
   margin-bottom: 24px;
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: background .3s, border-color .3s;
 }
 
 .table-panel-header {

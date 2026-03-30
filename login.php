@@ -49,15 +49,19 @@ $token = $_SESSION['login_token'];
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/dashboard.css">
   <style>
-    body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--bg); }
-    .login-box { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:40px; width:100%; max-width:380px; }
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--bg); transition: background .3s; }
+    .login-box { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:40px; width:100%; max-width:380px; transition: background .3s, border-color .3s; }
     .login-logo { display:flex; align-items:center; gap:10px; margin-bottom:28px; }
     .login-logo svg { width:28px; height:28px; color:var(--blue); }
     .login-logo span { font-size:20px; font-weight:700; color:var(--text); }
-    .login-title { font-size:22px; font-weight:700; margin-bottom:6px; }
+    .login-title { font-size:22px; font-weight:700; margin-bottom:6px; color:var(--text); }
     .login-sub { color:var(--muted); font-size:13px; margin-bottom:24px; }
     .error-msg { background:rgba(239,68,68,0.12); border:1px solid var(--red); color:var(--red); border-radius:6px; padding:10px 14px; font-size:13px; margin-bottom:16px; }
   </style>
+  <script>
+    const saved = localStorage.getItem('theme') || 'dark';
+    if (saved === 'light') document.documentElement.classList.add('light-theme');
+  </script>
 </head>
 <body>
 <div class="login-box">
