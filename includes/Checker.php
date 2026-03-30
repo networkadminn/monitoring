@@ -65,7 +65,8 @@ class Checker {
             CURLOPT_CONNECTTIMEOUT => CHECK_TIMEOUT,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS      => 5,
-            CURLOPT_SSL_VERIFYPEER => false, // SSL checked separately
+            CURLOPT_SSL_VERIFYPEER => (stripos($site['url'], 'https://') === 0),
+            CURLOPT_SSL_VERIFYHOST => (stripos($site['url'], 'https://') === 0) ? 2 : 0,
             CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SiteMonitor/1.1',
             CURLOPT_NOBODY         => false,
             CURLOPT_CERTINFO       => true, // Capture SSL info

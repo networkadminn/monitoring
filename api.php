@@ -197,7 +197,9 @@ try {
             if ($method !== 'POST') jsonError('POST required', 405);
             $output = [];
             $retval = 0;
-            exec('php cron_runner.php 2>&1', $output, $retval);
+            $php     = defined('PHP_BINARY') ? PHP_BINARY : 'php';
+            $script  = escapeshellarg(MONITOR_ROOT . '/cron_runner.php');
+            exec("{$php} {$script} 2>&1", $output, $retval);
             jsonOk(['output' => $output, 'success' => ($retval === 0)]);
             break;
 
@@ -225,10 +227,34 @@ function addSite(array $d): void {
     if (empty($clean['name'])) jsonError('Name is required');
     if (empty($clean['url'])) jsonError('URL is required');
 
-    if (in_array($clean['check_type'], ['http', 'keyword', 'ssl'])) {
+    $allowedTypes = ['http','ssl','port','dns','keyword'];
+    if (!in_array($clean['check_type'], $allowedTypes, true)) {
+        jsonError('Invalid check type');
+    }
+
+    if (in_array($clean['check_type'], ['http', 'keyword', 'ssl'], true)) {
         if (!filter_var($clean['url'], FILTER_VALIDATE_URL)) {
             jsonError('Invalid URL format');
         }
+    }
+
+    if ($clean['check_type'] === 'port') {
+        if (empty($clean['hostname']) && empty($clean['url'])) {
+            jsonError('Hostname or URL required for port check');
+        }
+        $port = (int) $clean['port'];
+        if ($port < 1 || $port > 65535) {
+            jsonError('Invalid port number');
+        }
+        $clean['port'] = $port;
+    }
+
+    if ($clean['check_type'] === 'dns' && empty($clean['hostname'])) {
+        jsonError('Hostname required for DNS check');
+    }
+
+    if ($clean['check_type'] === 'keyword' && empty($clean['keyword'])) {
+        jsonError('Keyword required for keyword check');
     }
 
     $clean['is_active']       = isset($d['is_active']) ? (int) $d['is_active'] : 1;
@@ -257,6 +283,36 @@ function updateSite(array $d): void {
 
     if (empty($clean['name'])) jsonError('Name is required');
     if (empty($clean['url'])) jsonError('URL is required');
+
+    $allowedTypes = ['http','ssl','port','dns','keyword'];
+    if (!in_array($clean['check_type'], $allowedTypes, true)) {
+        jsonError('Invalid check type');
+    }
+
+    if (in_array($clean['check_type'], ['http', 'keyword', 'ssl'], true)) {
+        if (!filter_var($clean['url'], FILTER_VALIDATE_URL)) {
+            jsonError('Invalid URL format');
+        }
+    }
+
+    if ($clean['check_type'] === 'port') {
+        if (empty($clean['hostname']) && empty($clean['url'])) {
+            jsonError('Hostname or URL required for port check');
+        }
+        $port = (int) $clean['port'];
+        if ($port < 1 || $port > 65535) {
+            jsonError('Invalid port number');
+        }
+        $clean['port'] = $port;
+    }
+
+    if ($clean['check_type'] === 'dns' && empty($clean['hostname'])) {
+        jsonError('Hostname required for DNS check');
+    }
+
+    if ($clean['check_type'] === 'keyword' && empty($clean['keyword'])) {
+        jsonError('Keyword required for keyword check');
+    }
 
     $clean['is_active']       = isset($d['is_active']) ? (int) $d['is_active'] : 1;
     $clean['expected_status'] = (int) ($d['expected_status'] ?? 200);
