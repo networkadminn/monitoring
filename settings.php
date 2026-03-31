@@ -113,6 +113,26 @@ $diskFree    = function_exists('disk_free_space') ? round(disk_free_space('/') /
       </table>
     </div>
 
+    <!-- Test Email Alerts -->
+    <div class="table-panel" style="margin-bottom:24px">
+      <div class="chart-title mb-4">Test Email Notifications</div>
+      <p style="color:var(--muted);margin:0 0 16px;font-size:13px">Send test email alerts to verify your SMTP configuration and email template. Admin email will receive FROM_EMAIL configured in config.php</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+        <button class="btn btn-primary" onclick="sendTestEmail('down')" style="justify-self:start">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><path d="M9 12h6m-6 4h6M9 8h6m-6-4h6m4 0v16m-16 0v-16m16 2H3"/></svg>
+          Test Down Alert
+        </button>
+        <button class="btn btn-success" onclick="sendTestEmail('recovery')" style="justify-self:start">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Test Recovery Alert
+        </button>
+        <button class="btn btn-warning" onclick="sendTestEmail('ssl_expiry')" style="justify-self:start">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Test SSL Expiry Alert
+        </button>
+      </div>
+    </div>
+
     <!-- Danger zone -->
     <div class="table-panel" style="border-top:3px solid var(--red)">
       <div class="chart-title mb-4">Danger Zone</div>
@@ -145,6 +165,40 @@ $diskFree    = function_exists('disk_free_space') ? round(disk_free_space('/') /
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="assets/js/dashboard.js"></script>
 <script>
+async function sendTestEmail(alertType) {
+  const alertLabels = {
+    'down': 'Down Alert',
+    'recovery': 'Recovery Alert',
+    'ssl_expiry': 'SSL Expiry Alert'
+  };
+  
+  const buttons = document.querySelectorAll('button[onclick^="sendTestEmail"]');
+  buttons.forEach(btn => btn.disabled = true);
+  
+  try {
+    const response = await fetch('api.php?action=test_email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      },
+      body: JSON.stringify({ alert_type: alertType })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to send test email');
+    }
+    
+    const result = await response.json();
+    showToast('Test ' + alertLabels[alertType] + ' sent to ' + result.email, 'success');
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  } finally {
+    buttons.forEach(btn => btn.disabled = false);
+  }
+}
+
 async function purgeLogs() {
   if (!confirm('Delete all logs older than <?= LOG_RETENTION_DAYS ?> days? This cannot be undone.')) return;
   try {

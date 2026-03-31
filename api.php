@@ -357,6 +357,48 @@ try {
             jsonOk(['output' => $output, 'success' => ($retval === 0)]);
             break;
 
+        // Test email alert notification
+        case 'test_email':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            if (!checkRateLimit('test_email', 10)) {
+                jsonError('Rate limit exceeded for test emails (10 per minute)', 429);
+            }
+            
+            $data = json_decode(file_get_contents('php://input'), true);
+            $alertType = $data['alert_type'] ?? 'down';
+            
+            if (!in_array($alertType, ['down', 'recovery', 'ssl_expiry'])) {
+                jsonError('Invalid alert type', 400);
+            }
+            
+            // Create a test site object
+            $testSite = [
+                'id' => 0,
+                'name' => 'Test Monitor - ' . ucfirst(str_replace('_', ' ', $alertType)),
+                'url' => APP_URL,
+                'check_type' => $alertType === 'ssl_expiry' ? 'ssl' : 'http',
+                'alert_email' => FROM_EMAIL
+            ];
+            
+            // Create test result based on alert type
+            $testResult = [
+                'status' => $alertType === 'recovery' ? 'up' : 'down',
+                'response_time' => $alertType === 'recovery' ? 125 : 5000,
+                'error_message' => $alertType === 'down' ? 'Connection timeout (test alert)' : null,
+                'ssl_expiry_days' => $alertType === 'ssl_expiry' ? 5 : null
+            ];
+            
+            // Send test email via Alert class
+            require_once MONITOR_ROOT . '/includes/Alert.php';
+            Alert::send($testSite, $testResult, $alertType);
+            
+            jsonOk([
+                'message' => 'Test email sent',
+                'alert_type' => $alertType,
+                'email' => FROM_EMAIL
+            ]);
+            break;
+
         default:
             jsonError('Unknown action', 400);
     }
