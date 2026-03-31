@@ -364,11 +364,33 @@ try {
                 jsonError('Rate limit exceeded for test emails (10 per minute)', 429);
             }
             
+            // Validate SMTP configuration
+            if (empty(SMTP_HOST) || empty(SMTP_USER) || empty(SMTP_PASS)) {
+                jsonError('SMTP configuration is incomplete. Check config.php: SMTP_HOST, SMTP_USER, SMTP_PASS', 400);
+            }
+            
+            if (empty(FROM_EMAIL)) {
+                jsonError('FROM_EMAIL not configured in config.php', 400);
+            }
+            
+            // Check if PHPMailer is installed
+            if (!file_exists(MONITOR_ROOT . '/vendor/autoload.php')) {
+                jsonError('PHPMailer not installed. Run: composer install', 400);
+            }
+            
+            if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
+                require_once MONITOR_ROOT . '/vendor/autoload.php';
+            }
+            
+            if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
+                jsonError('PHPMailer library not found. Run: composer install', 400);
+            }
+            
             $data = json_decode(file_get_contents('php://input'), true);
             $alertType = $data['alert_type'] ?? 'down';
             
             if (!in_array($alertType, ['down', 'recovery', 'ssl_expiry'])) {
-                jsonError('Invalid alert type', 400);
+                jsonError('Invalid alert type. Must be: down, recovery, or ssl_expiry', 400);
             }
             
             // Create a test site object
@@ -390,13 +412,17 @@ try {
             
             // Send test email via Alert class
             require_once MONITOR_ROOT . '/includes/Alert.php';
-            Alert::send($testSite, $testResult, $alertType);
             
-            jsonOk([
-                'message' => 'Test email sent',
-                'alert_type' => $alertType,
-                'email' => FROM_EMAIL
-            ]);
+            try {
+                Alert::sendTestEmail($testSite, $testResult, $alertType);
+                jsonOk([
+                    'message' => 'Test email sent successfully',
+                    'alert_type' => $alertType,
+                    'email' => FROM_EMAIL
+                ]);
+            } catch (Throwable $sendError) {
+                jsonError('Email test failed: ' . $sendError->getMessage(), 500);
+            }
             break;
 
         default:

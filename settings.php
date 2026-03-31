@@ -191,9 +191,12 @@ async function sendTestEmail(alertType) {
     }
     
     const result = await response.json();
-    showToast('Test ' + alertLabels[alertType] + ' sent to ' + result.email, 'success');
+    if (result.success === false) {
+      throw new Error(result.error || 'Unknown error');
+    }
+    showToast('Test ' + alertLabels[alertType] + ' sent to ' + result.data.email, 'success');
   } catch (err) {
-    showToast('Error: ' + err.message, 'error');
+    showToast('Email Error: ' + err.message, 'error');
   } finally {
     buttons.forEach(btn => btn.disabled = false);
   }

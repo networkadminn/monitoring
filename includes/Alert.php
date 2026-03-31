@@ -112,7 +112,11 @@ class Alert {
             $emails = array_filter(array_map('trim', explode(',', $site['alert_email'])));
             foreach ($emails as $to) {
                 if (self::validateEmail($to)) {
-                    self::sendEmail($to, $subject, $body);
+                    try {
+                        self::sendEmail($to, $subject, $body);
+                    } catch (Exception $e) {
+                        error_log('[Alert] Failed to send email: ' . $e->getMessage());
+                    }
                 } else {
                     error_log('[Alert] Skipping invalid alert email: ' . $to);
                 }
@@ -419,14 +423,12 @@ TEMPLATE;
     // -------------------------------------------------------------------------
     private static function sendEmail(string $to, string $subject, string $htmlBody): void {
         if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
-            error_log('[Alert] PHPMailer not installed. Run: composer install');
-            return;
+            throw new Exception('PHPMailer not installed. Run: composer install');
         }
 
         $to = filter_var(trim($to), FILTER_SANITIZE_EMAIL);
         if (!self::validateEmail($to)) {
-            error_log('[Alert] Invalid recipient email in sendEmail: ' . $to);
-            return;
+            throw new Exception('Invalid recipient email: ' . $to);
         }
 
         try {
@@ -449,7 +451,46 @@ TEMPLATE;
             $mail->send();
             error_log("[Alert] Email sent successfully to $to");
         } catch (Exception $e) {
-            error_log('[Alert] Email send failed: ' . $e->getMessage());
+            // Re-throw so the caller can decide what to do
+            throw new Exception('Email send failed: ' . $e->getMessage(), $e->getCode(), $e);
+        }
+    }
+
+    /**
+     * Send a test email for verifying SMTP configuration
+     * This method is used by the test_email API endpoint and throws exceptions if anything fails
+     */
+    public static function sendTestEmail(array $site, array $checkResult, string $event): void {
+        // Validate configuration first
+        if (empty(SMTP_HOST) || empty(SMTP_USER) || empty(SMTP_PASS)) {
+            throw new Exception('SMTP configuration incomplete: SMTP_HOST, SMTP_USER, SMTP_PASS required');
+        }
+        if (empty(FROM_EMAIL)) {
+            throw new Exception('FROM_EMAIL not configured in config.php');
+        }
+        if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
+            throw new Exception('PHPMailer not installed. Run: composer install');
+        }
+        
+        $subject = self::buildSubject($site, $checkResult, $event);
+        $body    = self::buildBody($site, $checkResult, $event);
+        
+        if (empty($site['alert_email'])) {
+            throw new Exception('No recipient email configured for this test');
+        }
+        
+        $emails = array_filter(array_map('trim', explode(',', $site['alert_email'])));
+        if (empty($emails)) {
+            throw new Exception('No valid recipient emails to send to');
+        }
+        
+        // Send to all configured emails, let exceptions propagate
+        foreach ($emails as $to) {
+            if (!self::validateEmail($to)) {
+                throw new Exception('Invalid recipient email: ' . $to);
+            }
+            // This will throw if anything fails
+            self::sendEmail($to, $subject, $body);
         }
     }
 }
