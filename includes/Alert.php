@@ -1,4 +1,10 @@
 <?php
+
+// Ensure autoloader is loaded
+if (file_exists(__DIR__ . "/../vendor/autoload.php")) {
+    require_once __DIR__ . "/../vendor/autoload.php";
+}
+
 // =============================================================================
 // includes/Alert.php - Multi-channel alert system with suppression
 // =============================================================================
@@ -204,10 +210,19 @@ class Alert {
     // -------------------------------------------------------------------------
     // Build subject line
     // -------------------------------------------------------------------------
+        // -------------------------------------------------------------------------
+    // Build subject line with proper UTF-8 encoding
+    // -------------------------------------------------------------------------
     private static function buildSubject(array $site, array $result, string $event): string {
-        $icon = $event === 'recovery' ? '✅ RECOVERED' : ($event === 'ssl_expiry' ? '🎫 SSL EXPIRING' : '🚨 ALERT');
+        $icon = $event === 'recovery' ? '✅ RECOVERED' : ($event === 'ssl_expiry' ? '⚠️ SSL EXPIRING' : '🔴 DOWN ALERT');
         if ($event === 'ssl_expiry') {
-            return "$icon: {$site['name']} SSL expires in {$result['ssl_expiry_days']} days";
+            $subject = "$icon: {$site['name']} SSL expires in {$result['ssl_expiry_days']} days";
+        } else {
+            $subject = "$icon: {$site['name']} is " . ($event === 'recovery' ? 'back online' : 'DOWN');
+        }
+        // Encode subject for email to handle emojis properly
+        return mb_encode_mimeheader($subject, 'UTF-8', 'B');
+    }
         }
         return "$icon: {$site['name']} is " . ($event === 'recovery' ? 'back online' : 'DOWN');
     }
@@ -215,45 +230,187 @@ class Alert {
     // -------------------------------------------------------------------------
     // Build HTML alert body
     // -------------------------------------------------------------------------
+    
+    // -------------------------------------------------------------------------
+    // Build HTML alert body - Creative Modern Template
+    // -------------------------------------------------------------------------
     private static function buildBody(array $site, array $result, string $event): string {
         $time    = date('Y-m-d H:i:s T');
         $status  = strtoupper($event === 'recovery' ? 'RECOVERED' : ($event === 'ssl_expiry' ? 'SSL EXPIRING' : $result['status']));
-        $color   = $event === 'recovery' ? '#27ae60' : ($event === 'ssl_expiry' ? '#f39c12' : '#e74c3c');
+        $color   = $event === 'recovery' ? '#10b981' : ($event === 'ssl_expiry' ? '#f59e0b' : '#ef4444');
+        $bgColor  = $event === 'recovery' ? '#d1fae5' : ($event === 'ssl_expiry' ? '#fed7aa' : '#fee2e2');
         $error   = htmlspecialchars($result['error_message'] ?? 'N/A');
         $rt      = $result['response_time'] ?? 'N/A';
         $url     = htmlspecialchars($site['url']);
         $name    = htmlspecialchars($site['name']);
         
+        // Status icons
+        $statusIcon = $event === 'recovery' ? '🎉' : ($event === 'ssl_expiry' ? '⚠️' : '🔴');
+        $statusEmoji = $event === 'recovery' ? '✅ BACK ONLINE' : ($event === 'ssl_expiry' ? '⏰ EXPIRING SOON' : '🚨 CRITICAL ALERT');
+        
+        // Response time indicator
+        $rtColor = $rt < 500 ? '#10b981' : ($rt < 1000 ? '#f59e0b' : '#ef4444');
+        $rtIcon = $rt < 500 ? '⚡' : ($rt < 1000 ? '🐌' : '🐢');
+        $rtText = $rt < 500 ? 'Excellent' : ($rt < 1000 ? 'Slow' : 'Very Slow');
+        
+        // SSL expiry details
         $expiryInfo = '';
+        $expiryWarning = '';
         if ($event === 'ssl_expiry') {
             $days = $result['ssl_expiry_days'];
-            $expiryInfo = "<tr><td style=\"padding:6px;color:#666\">SSL Expiry</td><td style=\"color:#e67e22;font-weight:bold\">{$days} Days Left</td></tr>";
+            $expiryInfo = "；
+            <tr style=\"border-bottom: 1px solid #e5e7eb;\">
+                <td style=\"padding: 12px; color: #6b7280; font-weight: 500;\">🔐 SSL Certificate</td>
+                <td style=\"padding: 12px; text-align: right;\">
+                    <span style=\"background: #fef3c7; color: #d97706; padding: 4px 12px; border-radius: 20px; font-weight: bold;\">
+                        {$days} Days Left
+                    </span>
+                </td>
+            </tr>";
+            
+            if ($days <= 3) {
+                $expiryWarning = '<div style="background: #fee2e2; border-left: 4px solid #dc2626; padding: 12px; margin: 15px 0; border-radius: 8px;">
+                    <strong style="color: #dc2626;">🔴 URGENT ACTION REQUIRED!</strong><br>
+                    This SSL certificate expires in less than 3 days. Renew immediately to avoid service interruption.
+                </div>';
+            } elseif ($days <= 7) {
+                $expiryWarning = '<div style="background: #fed7aa; border-left: 4px solid #f59e0b; padding: 12px; margin: 15px 0; border-radius: 8px;">
+                    <strong style="color: #d97706;">⚠️ IMPORTANT NOTICE!</strong><br>
+                    This SSL certificate expires in less than a week. Please schedule renewal soon.
+                </div>';
+            }
         }
-
+        
+        // Error message with better formatting
+        $errorDisplay = $error !== 'N/A' && !empty($error) ? 
+            '<tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 12px; color: #6b7280; font-weight: 500;">❌ Error Details</td>
+                <td style="padding: 12px; text-align: right; color: #dc2626; font-weight: 500;">' . $error . '</td>
+            </tr>' : '';
+        
         return <<<HTML
-<div style="font-family:Arial,sans-serif;max-width:600px">
-  <div style="background:{$color};color:#fff;padding:16px;border-radius:6px 6px 0 0">
-    <h2 style="margin:0">{$status}: {$name}</h2>
-  </div>
-  <div style="border:1px solid #ddd;padding:16px;border-radius:0 0 6px 6px">
-    <table style="width:100%;border-collapse:collapse">
-      <tr><td style="padding:6px;color:#666">URL</td><td><a href="{$url}">{$url}</a></td></tr>
-      <tr><td style="padding:6px;color:#666">Status</td><td><strong>{$status}</strong></td></tr>
-      {$expiryInfo}
-      <tr><td style="padding:6px;color:#666">Error</td><td>{$error}</td></tr>
-      <tr><td style="padding:6px;color:#666">Response Time</td><td>{$rt} ms</td></tr>
-      <tr><td style="padding:6px;color:#666">Time</td><td>{$time}</td></tr>
-    </table>
-  </div>
-  <p style="color:#999;font-size:12px">Sent by SiteMonitor &mdash; alerts suppressed for 1 hour after this.</p>
-</div>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site Monitor Alert - {$name}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Poppins', Arial, sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+        
+        <!-- Animated Header -->
+        <div style="background: linear-gradient(135deg, {$color} 0%, {$color}dd 100%); padding: 32px; text-align: center;">
+            <div style="font-size: 56px; margin-bottom: 12px; animation: pulse 1s;">{$statusIcon}</div>
+            <h1 style="color: white; margin: 0; font-size: 32px; font-weight: bold; letter-spacing: -0.5px;">
+                {$status}
+            </h1>
+            <p style="color: white; margin: 12px 0 0; opacity: 0.95; font-size: 14px;">
+                {$statusEmoji}
+            </p>
+        </div>
+        
+        <!-- Main Content -->
+        <div style="padding: 32px;">
+            
+            <!-- Site Name Badge -->
+            <div style="text-align: center; margin-bottom: 24px;">
+                <div style="display: inline-block; background: #f3f4f6; padding: 8px 20px; border-radius: 40px;">
+                    <span style="font-size: 18px; font-weight: 600; color: #1f2937;">🌐 {$name}</span>
+                </div>
+            </div>
+            
+            {$expiryWarning}
+            
+            <!-- Details Table -->
+            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                <tr style="border-bottom: 1px solid #e5e7eb;">
+                    <td style="padding: 12px; color: #6b7280; font-weight: 500;">🔗 URL</td>
+                    <td style="padding: 12px; text-align: right;">
+                        <a href="{$url}" style="color: #3b82f6; text-decoration: none; font-weight: 500;">{$url}</a>
+                    </td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e5e7eb;">
+                    <td style="padding: 12px; color: #6b7280; font-weight: 500;">📊 Status</td>
+                    <td style="padding: 12px; text-align: right;">
+                        <span style="background: {$bgColor}; color: {$color}; padding: 4px 12px; border-radius: 20px; font-weight: bold;">
+                            {$status}
+                        </span>
+                    </td>
+                </tr>
+                {$expiryInfo}
+                {$errorDisplay}
+                <tr style="border-bottom: 1px solid #e5e7eb;">
+                    <td style="padding: 12px; color: #6b7280; font-weight: 500;">⏱️ Response Time</td>
+                    <td style="padding: 12px; text-align: right;">
+                        <span style="color: {$rtColor}; font-weight: bold;">
+                            {$rtIcon} {$rt} ms ({$rtText})
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; color: #6b7280; font-weight: 500;">🕐 Timestamp</td>
+                    <td style="padding: 12px; text-align: right; color: #6b7280;">{$time}</td>
+                </tr>
+            </table>
+            
+            <!-- Action Button -->
+            <div style="text-align: center; margin: 30px 0 20px;">
+                <a href="{$url}" style="display: inline-block; background: linear-gradient(135deg, {$color} 0%, {$color}dd 100%); color: white; padding: 12px 32px; text-decoration: none; border-radius: 40px; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                    🔍 Check Site Now
+                </a>
+            </div>
+            
+            <!-- Additional Info -->
+            <div style="background: #f9fafb; border-radius: 12px; padding: 16px; margin-top: 24px; border: 1px solid #e5e7eb;">
+                <p style="margin: 0 0 8px; font-weight: bold; color: #374151;">📋 What to do next:</p>
+                <ul style="margin: 0; padding-left: 20px; color: #6b7280; line-height: 1.6;">
+                    " . ($event === 'ssl_expiry' ? '
+                    <li>Renew your SSL certificate immediately</li>
+                    <li>Contact your hosting provider for assistance</li>
+                    <li>Verify the new certificate is installed correctly</li>' : ($event === 'recovery' ? '
+                    <li>Site is now accessible - no action needed</li>
+                    <li>Monitor for any recurring issues</li>
+                    <li>Review incident report for details</li>' : '
+                    <li>Check if the server is responding</li>
+                    <li>Verify network connectivity</li>
+                    <li>Review server logs for errors</li>
+                    <li>Contact your hosting provider if issue persists</li>') . "
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 0 0 8px; color: #6b7280; font-size: 12px;">
+                🛡️ Site Monitor Pro - Real-time Website Monitoring
+            </p>
+            <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+                Alert cooldown: 1 hour | Check frequency: Every minute
+            </p>
+            <p style="margin: 8px 0 0; color: #9ca3af; font-size: 11px;">
+                <a href="https://monitoring.euclideesolutions.com" style="color: #9ca3af; text-decoration: none;">Dashboard</a> | 
+                <a href="#" style="color: #9ca3af; text-decoration: none;">Configure Alerts</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
 HTML;
     }
 
     // -------------------------------------------------------------------------
     // Send email via PHPMailer
     // -------------------------------------------------------------------------
+        // -------------------------------------------------------------------------
+    // Send email via PHPMailer with proper UTF-8 encoding
+    // -------------------------------------------------------------------------
     private static function sendEmail(string $to, string $subject, string $htmlBody): void {
+        // Ensure autoloader is loaded
+        if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+            require_once __DIR__ . '/../vendor/autoload.php';
+        }
+        
         if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
             error_log('[Alert] PHPMailer not installed. Run: composer install');
             return;
@@ -265,31 +422,27 @@ HTML;
             return;
         }
 
-        // Prevent newline injection in subject
-        $subject = str_replace(["\r", "\n"], ' ', trim($subject));
-
         try {
-            $mail = new PHPMailer(true);
+            $mail = new PHPMailer\PHPMailer\PHPMailer(true);
             $mail->isSMTP();
             $mail->Host       = SMTP_HOST;
             $mail->SMTPAuth   = true;
             $mail->Username   = SMTP_USER;
             $mail->Password   = SMTP_PASS;
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // SSL on port 465
+            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
             $mail->Port       = SMTP_PORT;
+            $mail->CharSet    = 'UTF-8';
+            $mail->Encoding   = 'base64';
             $mail->setFrom(FROM_EMAIL, FROM_NAME);
             $mail->addAddress($to);
             $mail->isHTML(true);
             $mail->Subject = $subject;
             $mail->Body    = $htmlBody;
-
-            $plainBody = html_entity_decode(strip_tags($htmlBody));
-            $plainBody = preg_replace('/\s+/', ' ', trim($plainBody));
-            $mail->AltBody = $plainBody;
-
+            $mail->AltBody = strip_tags($htmlBody);
             $mail->send();
-        } catch (MailException $e) {
-            error_log('[Alert] Email failed: ' . $e->getMessage());
+            error_log("[Alert] Email sent to $to");
+        } catch (Exception $e) {
+            error_log('[Alert] Email failed: ' . $mail->ErrorInfo);
         }
     }
 }
