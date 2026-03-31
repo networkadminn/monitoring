@@ -214,203 +214,210 @@ class Alert {
     // Build subject line with proper UTF-8 encoding
     // -------------------------------------------------------------------------
     private static function buildSubject(array $site, array $result, string $event): string {
-        $icon = $event === 'recovery' ? '✅ RECOVERED' : ($event === 'ssl_expiry' ? '⚠️ SSL EXPIRING' : '🔴 DOWN ALERT');
         if ($event === 'ssl_expiry') {
-            $subject = "$icon: {$site['name']} SSL expires in {$result['ssl_expiry_days']} days";
+            $days = $result['ssl_expiry_days'] ?? 0;
+            $subject = "[SSL EXPIRING] {$site['name']} - Certificate expires in {$days} days";
+        } elseif ($event === 'recovery') {
+            $subject = "[RECOVERED] {$site['name']} is back online";
         } else {
-            $subject = "$icon: {$site['name']} is " . ($event === 'recovery' ? 'back online' : 'DOWN');
+            $subject = "[DOWN ALERT] {$site['name']} is currently unavailable";
         }
-        // Encode subject for email to handle emojis properly
-        return mb_encode_mimeheader($subject, 'UTF-8', 'B');
-    }
-        }
-        return "$icon: {$site['name']} is " . ($event === 'recovery' ? 'back online' : 'DOWN');
+        return $subject;
     }
 
     // -------------------------------------------------------------------------
     // Build HTML alert body
     // -------------------------------------------------------------------------
-    
-    // -------------------------------------------------------------------------
-    // Build HTML alert body - Creative Modern Template
+    // Build HTML email body - Professional responsive template
     // -------------------------------------------------------------------------
     private static function buildBody(array $site, array $result, string $event): string {
-        $time    = date('Y-m-d H:i:s T');
-        $status  = strtoupper($event === 'recovery' ? 'RECOVERED' : ($event === 'ssl_expiry' ? 'SSL EXPIRING' : $result['status']));
-        $color   = $event === 'recovery' ? '#10b981' : ($event === 'ssl_expiry' ? '#f59e0b' : '#ef4444');
-        $bgColor  = $event === 'recovery' ? '#d1fae5' : ($event === 'ssl_expiry' ? '#fed7aa' : '#fee2e2');
-        $error   = htmlspecialchars($result['error_message'] ?? 'N/A');
-        $rt      = $result['response_time'] ?? 'N/A';
-        $url     = htmlspecialchars($site['url']);
-        $name    = htmlspecialchars($site['name']);
-        
-        // Status icons
-        $statusIcon = $event === 'recovery' ? '🎉' : ($event === 'ssl_expiry' ? '⚠️' : '🔴');
-        $statusEmoji = $event === 'recovery' ? '✅ BACK ONLINE' : ($event === 'ssl_expiry' ? '⏰ EXPIRING SOON' : '🚨 CRITICAL ALERT');
-        
-        // Response time indicator
-        $rtColor = $rt < 500 ? '#10b981' : ($rt < 1000 ? '#f59e0b' : '#ef4444');
-        $rtIcon = $rt < 500 ? '⚡' : ($rt < 1000 ? '🐌' : '🐢');
-        $rtText = $rt < 500 ? 'Excellent' : ($rt < 1000 ? 'Slow' : 'Very Slow');
-        
-        // SSL expiry details
-        $expiryInfo = '';
-        $expiryWarning = '';
-        if ($event === 'ssl_expiry') {
-            $days = $result['ssl_expiry_days'];
-            $expiryInfo = "；
-            <tr style=\"border-bottom: 1px solid #e5e7eb;\">
-                <td style=\"padding: 12px; color: #6b7280; font-weight: 500;\">🔐 SSL Certificate</td>
-                <td style=\"padding: 12px; text-align: right;\">
-                    <span style=\"background: #fef3c7; color: #d97706; padding: 4px 12px; border-radius: 20px; font-weight: bold;\">
-                        {$days} Days Left
-                    </span>
-                </td>
-            </tr>";
-            
-            if ($days <= 3) {
-                $expiryWarning = '<div style="background: #fee2e2; border-left: 4px solid #dc2626; padding: 12px; margin: 15px 0; border-radius: 8px;">
-                    <strong style="color: #dc2626;">🔴 URGENT ACTION REQUIRED!</strong><br>
-                    This SSL certificate expires in less than 3 days. Renew immediately to avoid service interruption.
-                </div>';
-            } elseif ($days <= 7) {
-                $expiryWarning = '<div style="background: #fed7aa; border-left: 4px solid #f59e0b; padding: 12px; margin: 15px 0; border-radius: 8px;">
-                    <strong style="color: #d97706;">⚠️ IMPORTANT NOTICE!</strong><br>
-                    This SSL certificate expires in less than a week. Please schedule renewal soon.
-                </div>';
-            }
+        $timestamp   = date('Y-m-d H:i:s T');
+        $siteName    = htmlspecialchars($site['name']);
+        $siteUrl     = htmlspecialchars($site['url']);
+        $checkType   = htmlspecialchars($site['check_type'] ?? 'http');
+        $responseTime = isset($result['response_time']) ? round($result['response_time']) : 'N/A';
+        $errorMsg    = htmlspecialchars($result['error_message'] ?? 'No error details available');
+
+        // Determine status and colors
+        if ($event === 'recovery') {
+            $statusLabel  = 'RECOVERED';
+            $statusText   = 'Site is back online';
+            $headerBg     = '#10b981';
+            $headerBgGrad = '#059669';
+            $badge        = '#d1fae5';
+            $badgeText    = '#047857';
+            $actionText   = 'View Dashboard';
+            $actionBg     = '#10b981';
+            $nextSteps    = [
+                'Site is back online and functioning normally',
+                'Check the dashboard for any performance metrics',
+                'Review incident duration and response times',
+                'Monitor for any recurring issues'
+            ];
+        } elseif ($event === 'ssl_expiry') {
+            $days         = $result['ssl_expiry_days'] ?? 0;
+            $statusLabel  = 'SSL EXPIRING SOON';
+            $statusText   = "Certificate expires in {$days} days";
+            $headerBg     = '#f59e0b';
+            $headerBgGrad = '#d97706';
+            $badge        = '#fed7aa';
+            $badgeText    = '#d97706';
+            $actionText   = 'Renew Certificate';
+            $actionBg     = '#f59e0b';
+            $nextSteps    = [
+                'Review the certificate expiry date above',
+                'Log in to your hosting provider\'s certificate management panel',
+                'Renew or reissue the SSL certificate',
+                'Reinstall the new certificate on your server',
+                'Verify the certificate is working correctly'
+            ];
+        } else {
+            $statusLabel  = 'DOWN - IMMEDIATE ACTION NEEDED';
+            $statusText   = 'Site is currently unavailable';
+            $headerBg     = '#ef4444';
+            $headerBgGrad = '#dc2626';
+            $badge        = '#fee2e2';
+            $badgeText    = '#991b1b';
+            $actionText   = 'Troubleshoot Now';
+            $actionBg     = '#ef4444';
+            $nextSteps    = [
+                'Check if your server is running and responsive',
+                'Verify network connectivity and firewall settings',
+                'Check your hosting provider\'s status page',
+                'Review server logs for error messages',
+                'Contact your hosting provider if the issue persists'
+            ];
         }
-        
-        // Error message with better formatting
-        $errorDisplay = $error !== 'N/A' && !empty($error) ? 
-            '<tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 12px; color: #6b7280; font-weight: 500;">❌ Error Details</td>
-                <td style="padding: 12px; text-align: right; color: #dc2626; font-weight: 500;">' . $error . '</td>
-            </tr>' : '';
-        
-        return <<<HTML
+
+        // Build next steps list
+        $nextStepsList = '';
+        foreach ($nextSteps as $step) {
+            $nextStepsList .= '<li style="margin: 8px 0;">' . htmlspecialchars($step) . '</li>';
+        }
+
+        // Build error details section (if applicable)
+        $errorSection = '';
+        if ($event !== 'recovery' && !empty($result['error_message'])) {
+            $errorSection = '
+                <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px; margin: 20px 0; border-radius: 4px;">
+                    <p style="margin: 0 0 8px; color: #991b1b; font-weight: bold; font-size: 13px;">Error Details:</p>
+                    <p style="margin: 0; color: #7f1d1d; font-size: 13px; word-break: break-word;">' . $errorMsg . '</p>
+                </div>';
+        }
+
+        // Build SSL details section (if applicable)
+        $sslSection = '';
+        if ($event === 'ssl_expiry' && isset($result['ssl_expiry_days'])) {
+            $days = $result['ssl_expiry_days'];
+            $urgencyMsg = '';
+            if ($days <= 3) {
+                $urgencyMsg = '<p style="margin: 4px 0 0; color: #dc2626; font-weight: bold; font-size: 12px;">🔴 URGENT - Renew immediately</p>';
+            } elseif ($days <= 7) {
+                $urgencyMsg = '<p style="margin: 4px 0 0; color: #d97706; font-weight: bold; font-size: 12px;">⚠️ HIGH PRIORITY - Renew soon</p>';
+            }
+            $sslSection = '
+                <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px; margin: 20px 0; border-radius: 4px;">
+                    <p style="margin: 0 0 4px; color: #92400e; font-weight: bold; font-size: 13px;">🔐 SSL Certificate expires in ' . $days . ' days</p>
+                    <p style="margin: 0; color: #b45309; font-size: 12px;">Expiry Date: ' . date('M d, Y', strtotime("+{$days} days")) . '</p>
+                    ' . $urgencyMsg . '
+                </div>';
+        }
+
+        return <<<TEMPLATE
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Site Monitor Alert - {$name}</title>
+    <title>Site Monitor Alert - {$siteName}</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Poppins', Arial, sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+<body style="margin: 0; padding: 16px; background: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
         
-        <!-- Animated Header -->
-        <div style="background: linear-gradient(135deg, {$color} 0%, {$color}dd 100%); padding: 32px; text-align: center;">
-            <div style="font-size: 56px; margin-bottom: 12px; animation: pulse 1s;">{$statusIcon}</div>
-            <h1 style="color: white; margin: 0; font-size: 32px; font-weight: bold; letter-spacing: -0.5px;">
-                {$status}
-            </h1>
-            <p style="color: white; margin: 12px 0 0; opacity: 0.95; font-size: 14px;">
-                {$statusEmoji}
-            </p>
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, {$headerBg} 0%, {$headerBgGrad} 100%); color: white; padding: 32px 24px; text-align: center;">
+            <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">{$statusLabel}</h1>
+            <p style="margin: 8px 0 0; font-size: 16px; opacity: 0.95;">{$statusText}</p>
         </div>
-        
-        <!-- Main Content -->
-        <div style="padding: 32px;">
+
+        <!-- Content -->
+        <div style="padding: 32px 24px;">
             
             <!-- Site Name Badge -->
             <div style="text-align: center; margin-bottom: 24px;">
-                <div style="display: inline-block; background: #f3f4f6; padding: 8px 20px; border-radius: 40px;">
-                    <span style="font-size: 18px; font-weight: 600; color: #1f2937;">🌐 {$name}</span>
-                </div>
+                <span style="display: inline-block; background: {$badge}; color: {$badgeText}; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 14px;">
+                    {$siteName}
+                </span>
             </div>
-            
-            {$expiryWarning}
-            
+
+            {$sslSection}
+            {$errorSection}
+
             <!-- Details Table -->
-            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 12px; color: #6b7280; font-weight: 500;">🔗 URL</td>
-                    <td style="padding: 12px; text-align: right;">
-                        <a href="{$url}" style="color: #3b82f6; text-decoration: none; font-weight: 500;">{$url}</a>
+            <table style="width: 100%; border-collapse: collapse; margin: 24px 0;">
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 12px 0; width: 40%; color: #6b7280; font-weight: 500;">URL</td>
+                    <td style="padding: 12px 0; text-align: right; color: #1f2937;">
+                        <a href="{$siteUrl}" style="color: #0284c7; text-decoration: none;">{$siteUrl}</a>
                     </td>
                 </tr>
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 12px; color: #6b7280; font-weight: 500;">📊 Status</td>
-                    <td style="padding: 12px; text-align: right;">
-                        <span style="background: {$bgColor}; color: {$color}; padding: 4px 12px; border-radius: 20px; font-weight: bold;">
-                            {$status}
-                        </span>
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 12px 0; color: #6b7280; font-weight: 500;">Check Type</td>
+                    <td style="padding: 12px 0; text-align: right; color: #1f2937;">
+                        <span style="background: #f3f4f6; color: #6b7280; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">{$checkType}</span>
                     </td>
                 </tr>
-                {$expiryInfo}
-                {$errorDisplay}
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 12px; color: #6b7280; font-weight: 500;">⏱️ Response Time</td>
-                    <td style="padding: 12px; text-align: right;">
-                        <span style="color: {$rtColor}; font-weight: bold;">
-                            {$rtIcon} {$rt} ms ({$rtText})
-                        </span>
-                    </td>
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 12px 0; color: #6b7280; font-weight: 500;">Response Time</td>
+                    <td style="padding: 12px 0; text-align: right; color: #1f2937;">{$responseTime} ms</td>
                 </tr>
                 <tr>
-                    <td style="padding: 12px; color: #6b7280; font-weight: 500;">🕐 Timestamp</td>
-                    <td style="padding: 12px; text-align: right; color: #6b7280;">{$time}</td>
+                    <td style="padding: 12px 0; color: #6b7280; font-weight: 500;">Timestamp</td>
+                    <td style="padding: 12px 0; text-align: right; color: #1f2937;">{$timestamp}</td>
                 </tr>
             </table>
-            
+
             <!-- Action Button -->
-            <div style="text-align: center; margin: 30px 0 20px;">
-                <a href="{$url}" style="display: inline-block; background: linear-gradient(135deg, {$color} 0%, {$color}dd 100%); color: white; padding: 12px 32px; text-decoration: none; border-radius: 40px; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-                    🔍 Check Site Now
+            <div style="text-align: center; margin: 28px 0;">
+                <a href="{$siteUrl}" style="display: inline-block; background: linear-gradient(135deg, {$actionBg} 0%, {$actionBg}dd 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                    {$actionText}
                 </a>
             </div>
-            
-            <!-- Additional Info -->
-            <div style="background: #f9fafb; border-radius: 12px; padding: 16px; margin-top: 24px; border: 1px solid #e5e7eb;">
-                <p style="margin: 0 0 8px; font-weight: bold; color: #374151;">📋 What to do next:</p>
-                <ul style="margin: 0; padding-left: 20px; color: #6b7280; line-height: 1.6;">
-                    " . ($event === 'ssl_expiry' ? '
-                    <li>Renew your SSL certificate immediately</li>
-                    <li>Contact your hosting provider for assistance</li>
-                    <li>Verify the new certificate is installed correctly</li>' : ($event === 'recovery' ? '
-                    <li>Site is now accessible - no action needed</li>
-                    <li>Monitor for any recurring issues</li>
-                    <li>Review incident report for details</li>' : '
-                    <li>Check if the server is responding</li>
-                    <li>Verify network connectivity</li>
-                    <li>Review server logs for errors</li>
-                    <li>Contact your hosting provider if issue persists</li>') . "
-                </ul>
+
+            <!-- Next Steps -->
+            <div style="background: #f0f9ff; border-left: 4px solid #0284c7; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                <h4 style="margin: 0 0 12px; color: #0c4a6e; font-size: 14px; font-weight: 600;">📋 Recommended Actions:</h4>
+                <ol style="margin: 0; padding-left: 20px; color: #0c4a6e; font-size: 13px; line-height: 1.6;">
+                    {$nextStepsList}
+                </ol>
             </div>
+
         </div>
-        
+
         <!-- Footer -->
-        <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-            <p style="margin: 0 0 8px; color: #6b7280; font-size: 12px;">
-                🛡️ Site Monitor Pro - Real-time Website Monitoring
+        <div style="background: #f9fafb; padding: 20px 24px; text-align: center; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">
+            <p style="margin: 0 0 8px;">
+                <strong>Site Monitor</strong> – Real-time Website Monitoring & Alerts
             </p>
-            <p style="margin: 0; color: #9ca3af; font-size: 11px;">
-                Alert cooldown: 1 hour | Check frequency: Every minute
+            <p style="margin: 0 0 8px; font-size: 11px;">
+                Alert Cooldown: 1 hour | Check Interval: Every minute
             </p>
-            <p style="margin: 8px 0 0; color: #9ca3af; font-size: 11px;">
-                <a href="https://monitoring.euclideesolutions.com" style="color: #9ca3af; text-decoration: none;">Dashboard</a> | 
-                <a href="#" style="color: #9ca3af; text-decoration: none;">Configure Alerts</a>
+            <p style="margin: 0; font-size: 11px;">
+                <a href="{APP_URL}" style="color: #3b82f6; text-decoration: none;">Dashboard</a> | 
+                <a href="{APP_URL}/settings.php" style="color: #3b82f6; text-decoration: none;">Settings</a>
             </p>
         </div>
+
     </div>
 </body>
 </html>
-HTML;
+TEMPLATE;
     }
 
     // -------------------------------------------------------------------------
-    // Send email via PHPMailer
-    // -------------------------------------------------------------------------
-        // -------------------------------------------------------------------------
     // Send email via PHPMailer with proper UTF-8 encoding
     // -------------------------------------------------------------------------
     private static function sendEmail(string $to, string $subject, string $htmlBody): void {
-        // Ensure autoloader is loaded
-        if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
-            require_once __DIR__ . '/../vendor/autoload.php';
-        }
-        
         if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
             error_log('[Alert] PHPMailer not installed. Run: composer install');
             return;
@@ -440,9 +447,9 @@ HTML;
             $mail->Body    = $htmlBody;
             $mail->AltBody = strip_tags($htmlBody);
             $mail->send();
-            error_log("[Alert] Email sent to $to");
+            error_log("[Alert] Email sent successfully to $to");
         } catch (Exception $e) {
-            error_log('[Alert] Email failed: ' . $mail->ErrorInfo);
+            error_log('[Alert] Email send failed: ' . $e->getMessage());
         }
     }
 }
