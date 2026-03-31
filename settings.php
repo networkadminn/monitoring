@@ -185,15 +185,12 @@ async function sendTestEmail(alertType) {
       body: JSON.stringify({ alert_type: alertType })
     });
     
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to send test email');
+    const result = await response.json();
+    
+    if (!response.ok || result.success === false) {
+      throw new Error(result.error || 'Failed to send test email');
     }
     
-    const result = await response.json();
-    if (result.success === false) {
-      throw new Error(result.error || 'Unknown error');
-    }
     showToast('Test ' + alertLabels[alertType] + ' sent to ' + result.data.email, 'success');
   } catch (err) {
     showToast('Email Error: ' + err.message, 'error');
