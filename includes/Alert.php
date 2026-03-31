@@ -432,13 +432,13 @@ TEMPLATE;
         }
 
         try {
-            $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+            $mail = new PHPMailer(true);
             $mail->isSMTP();
             $mail->Host       = SMTP_HOST;
             $mail->SMTPAuth   = true;
             $mail->Username   = SMTP_USER;
             $mail->Password   = SMTP_PASS;
-            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
             $mail->Port       = SMTP_PORT;
             $mail->CharSet    = 'UTF-8';
             $mail->Encoding   = 'base64';
