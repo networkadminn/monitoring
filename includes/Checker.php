@@ -194,30 +194,73 @@ class Checker {
     }
 
     // -------------------------------------------------------------------------
-    // Keyword presence check
+    // Keyword presence check - FIXED: Now uses cURL instead of file_get_contents
     // -------------------------------------------------------------------------
     private static function checkKeyword(array $site): array {
         $start   = microtime(true);
         $keyword = $site['keyword'] ?? '';
 
-        $context = stream_context_create(['http' => [
-            'timeout'     => CHECK_TIMEOUT,
-            'user_agent'  => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SiteMonitor/1.1',
-            'header'      => "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8\r\nAccept-Language: en-US,en;q=0.9\r\nAccept-Encoding: gzip, deflate\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\n",
-            'ignore_errors' => true,
-        ]]);
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $site['url'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => CHECK_TIMEOUT,
+            CURLOPT_CONNECTTIMEOUT => CHECK_TIMEOUT,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_SSL_VERIFYPEER => (stripos($site['url'], 'https://') === 0),
+            CURLOPT_SSL_VERIFYHOST => (stripos($site['url'], 'https://') === 0) ? 2 : 0,
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SiteMonitor/1.1',
+            CURLOPT_HTTPHEADER     => [
+                'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language: en-US,en;q=0.9',
+                'Accept-Encoding: gzip, deflate',
+                'Connection: keep-alive',
+                'Upgrade-Insecure-Requests: 1',
+                'Cache-Control: max-age=0'
+            ],
+            CURLOPT_ENCODING       => 'gzip, deflate',  // Auto-decompress
+            CURLOPT_HEADER         => false,           // Don't include headers in output
+        ]);
 
-        $body = file_get_contents($site['url'], false, $context) ?: false;
+        $response     = curl_exec($ch);
+        $httpCode     = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError    = curl_error($ch);
+        curl_close($ch);
+
         $responseTime = round((microtime(true) - $start) * 1000, 2);
 
-        if ($body === false) {
-            return ['status' => 'down', 'response_time' => $responseTime, 'error_message' => 'Could not fetch URL'];
+        // Check for cURL errors
+        if ($curlError) {
+            return [
+                'status' => 'down', 
+                'response_time' => $responseTime, 
+                'error_message' => "cURL error: $curlError"
+            ];
         }
 
-        if ($keyword && strpos($body, $keyword) === false) {
-            return ['status' => 'down', 'response_time' => $responseTime, 'error_message' => "Keyword \"$keyword\" not found on page"];
+        // Check for HTTP errors (4xx, 5xx)
+        if ($httpCode >= 400) {
+            return [
+                'status' => 'down', 
+                'response_time' => $responseTime, 
+                'error_message' => "HTTP $httpCode error"
+            ];
         }
 
-        return ['status' => 'up', 'response_time' => $responseTime];
+        // Check for keyword presence
+        if ($keyword && strpos($response, $keyword) === false) {
+            return [
+                'status' => 'down', 
+                'response_time' => $responseTime, 
+                'error_message' => "Keyword \"$keyword\" not found on page"
+            ];
+        }
+
+        // Success - keyword found (or no keyword required)
+        return [
+            'status' => 'up', 
+            'response_time' => $responseTime
+        ];
     }
 }
