@@ -20,7 +20,7 @@ define('FROM_NAME', 'Site Monitor');
 
 // Monitoring behaviour
 define('ALERT_COOLDOWN', 3600);   // seconds between repeat alerts per site
-define('CHECK_TIMEOUT', 10);       // seconds before a check times out
+define('CHECK_TIMEOUT', 30);       // seconds before a check times out
 define('LOG_RETENTION_DAYS', 90);  // days to keep raw logs
 
 // Dashboard session auth
