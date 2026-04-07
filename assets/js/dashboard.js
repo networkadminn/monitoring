@@ -954,6 +954,7 @@ async function saveSite() {
     keyword:             document.getElementById('site-keyword').value,
     expected_status:     document.getElementById('site-expected').value || 200,
     alert_email:         document.getElementById('site-email').value,
+    alert_teams:         document.getElementById('site-teams').value,
     is_active:           document.getElementById('site-active').checked ? 1 : 0,
     tags:                document.getElementById('site-tags').value,
     failure_threshold:   parseInt(document.getElementById('site-failure-threshold').value) || 3,

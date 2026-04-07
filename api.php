@@ -439,7 +439,7 @@ try {
 
 function addSite(array $d): void {
     $fields = ['name', 'url', 'check_type', 'port', 'hostname', 'keyword',
-               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'is_active', 'tags',
+               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'alert_teams', 'is_active', 'tags',
                'failure_threshold', 'recovery_threshold'];
 
     $clean = [];
@@ -505,9 +505,9 @@ function addSite(array $d): void {
 
     $id = Database::insert(
         'INSERT INTO sites (name, url, check_type, port, hostname, keyword,
-            expected_status, alert_email, alert_phone, alert_telegram, is_active, tags,
+            expected_status, alert_email, alert_phone, alert_telegram, alert_teams, is_active, tags,
             failure_threshold, recovery_threshold)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         array_values($clean)
     );
     jsonOk(['created' => $id, 'message' => 'Monitor added successfully']);
@@ -518,7 +518,7 @@ function updateSite(array $d): void {
     $id = (int) $d['id'];
 
     $fields = ['name', 'url', 'check_type', 'port', 'hostname', 'keyword',
-               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'is_active', 'tags',
+               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'alert_teams', 'is_active', 'tags',
                'failure_threshold', 'recovery_threshold'];
 
     $clean = [];
@@ -584,7 +584,7 @@ function updateSite(array $d): void {
 
     Database::execute(
         'UPDATE sites SET name=?, url=?, check_type=?, port=?, hostname=?, keyword=?,
-            expected_status=?, alert_email=?, alert_phone=?, alert_telegram=?, is_active=?, tags=?,
+            expected_status=?, alert_email=?, alert_phone=?, alert_telegram=?, alert_teams=?, is_active=?, tags=?,
             failure_threshold=?, recovery_threshold=?
             WHERE id=?',
         array_merge(array_values($clean), [$id])
