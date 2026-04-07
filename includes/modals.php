@@ -94,8 +94,15 @@
             <label>Alert Email</label>
             <input type="email" id="site-email" class="form-control" placeholder="ops@example.com">
           </div>
-          <p style="font-size:12px;color:var(--muted);margin-top:8px">
-            Alerts are sent when a site goes down and when it recovers. A cooldown of <?= ALERT_COOLDOWN / 60 ?> minutes applies between repeat alerts.
+          <div class="form-group" style="margin-top:16px">
+            <label>Microsoft Teams Webhook</label>
+            <input type="url" id="site-teams" class="form-control" placeholder="https://outlook.webhook.office.com/webhookb2/...">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">
+              Get your webhook URL from Teams → Configure Connector → Incoming Webhook
+            </div>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-top:16px">
+            Alerts are sent when a site goes down and when it recovers. A cooldown of <?= ALERT_COOLDOWN / 60 ?> minutes applies between repeat alerts for the same event.
           </p>
         </div>
 

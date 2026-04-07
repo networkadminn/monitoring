@@ -133,6 +133,11 @@ class Alert {
             self::sendTelegram($site['alert_telegram'], "{$subject} - {$site['url']} - {$checkResult['error_message']}");
         }
 
+        // Microsoft Teams
+        if (ENABLE_TEAMS_ALERTS && !empty($site['alert_teams'])) {
+            self::sendTeams($site, $checkResult, $subject, $event);
+        }
+
         // Record that we sent this alert (for cooldown)
         self::recordAlert($siteId, $alertType);
     }
@@ -182,6 +187,79 @@ class Alert {
             error_log('[Alert] Telegram send failed: ' . curl_error($ch));
         }
         curl_close($ch);
+    }
+
+    private static function sendTeams(array $site, array $checkResult, string $subject, string $event): void {
+        $webhookUrl = $site['alert_teams'] ?? null;
+        if (empty($webhookUrl)) {
+            return;
+        }
+
+        // Determine color and status based on event type
+        if ($event === 'recovery') {
+            $color = '28a745';  // Green
+            $status = '✅ RECOVERED';
+        } elseif ($event === 'ssl_expiry') {
+            $color = 'ffc107';  // Yellow/Orange
+            $status = '⚠️ SSL EXPIRING';
+        } else {
+            $color = 'dc3545';  // Red
+            $status = '❌ DOWN';
+        }
+
+        $errorMsg = htmlspecialchars($checkResult['error_message'] ?? 'No error details');
+        $siteName = htmlspecialchars($site['name']);
+        $siteUrl  = htmlspecialchars($site['url']);
+        $responseTime = $checkResult['response_time'] ?? 'N/A';
+        $timestamp = date('Y-m-d H:i:s T');
+
+        // Build Teams Adaptive Card JSON
+        $card = [
+            '@type' => 'MessageCard',
+            '@context' => 'https://schema.org/extensions',
+            'summary' => $subject,
+            'themeColor' => $color,
+            'sections' => [
+                [
+                    'activityTitle' => $subject,
+                    'activitySubtitle' => "$status - " . date('Y-m-d H:i:s T'),
+                    'text' => "<b>Site:</b> $siteName<br><b>URL:</b> $siteUrl<br><b>Error:</b> $errorMsg<br><b>Response Time:</b> {$responseTime}ms",
+                    'markdown' => true
+                ]
+            ],
+            'potentialAction' => [
+                [
+                    '@type' => 'OpenUri',
+                    'name' => 'View Monitor',
+                    'targets' => [
+                        ['os' => 'default', 'uri' => APP_URL . '/site_details.php?id=' . (int)$site['id']]
+                    ]
+                ]
+            ]
+        ];
+
+        $payload = json_encode($card);
+
+        $ch = curl_init($webhookUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            error_log("[Alert] Teams send failed: $curlError");
+        } elseif ($httpCode !== 200) {
+            error_log("[Alert] Teams returned HTTP $httpCode: $response");
+        }
     }
 
     // -------------------------------------------------------------------------

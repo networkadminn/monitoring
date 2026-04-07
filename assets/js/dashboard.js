@@ -834,6 +834,7 @@ async function openSiteModal(id = null) {
       document.getElementById('site-keyword').value    = s.keyword || '';
       document.getElementById('site-expected').value   = s.expected_status || 200;
       document.getElementById('site-email').value      = s.alert_email || '';
+      document.getElementById('site-teams').value      = s.alert_teams || '';
       document.getElementById('site-active').checked   = s.is_active == 1;
       document.getElementById('site-tags').value       = s.tags || '';
       document.getElementById('site-failure-threshold').value   = s.failure_threshold || 3;

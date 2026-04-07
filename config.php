@@ -39,6 +39,7 @@ define('SMS_API_KEY', '');
 define('ENABLE_TELEGRAM_ALERTS', false);
 define('TELEGRAM_BOT_TOKEN', '');
 define('TELEGRAM_CHAT_ID', '');
+define('ENABLE_TEAMS_ALERTS', true);  // Microsoft Teams webhook alerts
 
 // Timezone
 date_default_timezone_set('UTC');

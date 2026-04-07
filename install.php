@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS sites (
     alert_email      VARCHAR(255)  NULL,
     alert_phone      VARCHAR(30)   NULL,
     alert_telegram   VARCHAR(60)   NULL,
+    alert_teams      VARCHAR(500)  NULL,
     is_active        TINYINT(1)    NOT NULL DEFAULT 1,
     tags             VARCHAR(255)  NULL,
     uptime_percentage DECIMAL(5,2) NOT NULL DEFAULT 100.00,
@@ -162,6 +163,14 @@ SQL;
             $pdo->exec('ALTER TABLE sites ADD COLUMN last_down_alert_time TIMESTAMP NULL AFTER recovery_threshold');
             $pdo->exec('ALTER TABLE sites ADD COLUMN last_recovery_alert_time TIMESTAMP NULL AFTER last_down_alert_time');
             $messages[] = 'Migration: Added smart threshold columns for failure detection.';
+        }
+
+        // Add Microsoft Teams webhook support (Phase 3)
+        $siteCols = $pdo->query('SHOW COLUMNS FROM sites')->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('alert_teams', $siteCols)) {
+            $pdo->exec('ALTER TABLE sites ADD COLUMN alert_teams VARCHAR(500) NULL AFTER alert_telegram');
+            $messages[] = 'Migration: Added Microsoft Teams webhook support.';
+        }
         }
 
         // Add check constraints for data integrity (Phase 2 validation)
