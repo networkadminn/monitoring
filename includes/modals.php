@@ -67,6 +67,25 @@
             <label>Keyword (for keyword checks)</label>
             <input type="text" id="site-keyword" class="form-control" placeholder="Welcome to our site">
           </div>
+
+          <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+            <label style="font-weight:600;display:block;margin-bottom:12px">Smart Alerting Thresholds</label>
+            <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+              Require multiple consecutive failures/recoveries before alerting to reduce false positives.
+            </p>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Failures Before Alert</label>
+                <input type="number" id="site-failure-threshold" class="form-control" value="3" min="1" max="10">
+                <div style="font-size:11px;color:var(--muted);margin-top:4px">Default: 3 checks</div>
+              </div>
+              <div class="form-group">
+                <label>Recoveries Before Alert</label>
+                <input type="number" id="site-recovery-threshold" class="form-control" value="3" min="1" max="10">
+                <div style="font-size:11px;color:var(--muted);margin-top:4px">Default: 3 checks</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Alerts tab -->

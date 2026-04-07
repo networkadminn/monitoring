@@ -52,7 +52,7 @@ class Checker {
     }
 
     // -------------------------------------------------------------------------
-    // HTTP / HTTPS check
+    // HTTP / HTTPS check - improved with better timeout handling
     // -------------------------------------------------------------------------
     private static function checkHttp(array $site): array {
         $start = microtime(true);
@@ -62,7 +62,7 @@ class Checker {
             CURLOPT_URL            => $site['url'],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => CHECK_TIMEOUT,
-            CURLOPT_CONNECTTIMEOUT => CHECK_TIMEOUT,
+            CURLOPT_CONNECTTIMEOUT => min(CHECK_TIMEOUT, 15), // Faster connection timeout
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS      => 5,
             CURLOPT_SSL_VERIFYPEER => (stripos($site['url'], 'https://') === 0),
@@ -70,6 +70,8 @@ class Checker {
             CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SiteMonitor/1.1',
             CURLOPT_NOBODY         => false,
             CURLOPT_CERTINFO       => true, // Capture SSL info
+            CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1, // Use HTTP/1.1 for better compatibility
+            CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4, // Try IPv4 first (avoids some DNS delays)
             CURLOPT_HTTPHEADER     => [
                 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                 'Accept-Language: en-US,en;q=0.9',
@@ -84,6 +86,8 @@ class Checker {
         $response     = curl_exec($ch);
         $httpCode     = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError    = curl_error($ch);
+        $curlErrCode  = curl_errno($ch);
+        $responseTime = round((microtime(true) - $start) * 1000, 2);
         
         // Extract SSL info if HTTPS
         $sslDays = null;
@@ -97,15 +101,51 @@ class Checker {
         
         curl_close($ch);
 
-        $responseTime = round((microtime(true) - $start) * 1000, 2);
-        $expected     = (int) ($site['expected_status'] ?? 200);
+        $expected = (int) ($site['expected_status'] ?? 200);
 
+        // Handle curl errors with better classification
         if ($curlError) {
-            return ['status' => 'down', 'response_time' => $responseTime, 'error_message' => "cURL error: $curlError", 'ssl_expiry_days' => $sslDays];
+            $errorMsg = "cURL error: $curlError";
+            
+            // Classify common errors for better monitoring
+            switch ($curlErrCode) {
+                case CURLE_OPERATION_TIMEDOUT:
+                case CURLE_COULDNT_RESOLVE_HOST:
+                case CURLE_COULDNT_CONNECT:
+                    $errorMsg = "Connection timeout/failed (code: $curlErrCode)";
+                    break;
+                case CURLE_SSL_CONNECT_ERROR:
+                    $errorMsg = "SSL connection error";
+                    break;
+                case CURLE_PARTIAL_FILE:
+                    $errorMsg = "Incomplete response (partial file)";
+                    break;
+            }
+            
+            return [
+                'status' => 'down', 
+                'response_time' => $responseTime, 
+                'error_message' => $errorMsg, 
+                'ssl_expiry_days' => $sslDays
+            ];
+        }
+
+        if ($httpCode === 0) {
+            return [
+                'status' => 'down', 
+                'response_time' => $responseTime, 
+                'error_message' => 'No HTTP response (possible network issue)', 
+                'ssl_expiry_days' => $sslDays
+            ];
         }
 
         if ($httpCode !== $expected) {
-            return ['status' => 'down', 'response_time' => $responseTime, 'error_message' => "Expected HTTP $expected, got $httpCode", 'ssl_expiry_days' => $sslDays];
+            return [
+                'status' => 'down', 
+                'response_time' => $responseTime, 
+                'error_message' => "Expected HTTP $expected, got $httpCode", 
+                'ssl_expiry_days' => $sslDays
+            ];
         }
 
         return ['status' => 'up', 'response_time' => $responseTime, 'ssl_expiry_days' => $sslDays];

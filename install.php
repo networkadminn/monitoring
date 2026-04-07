@@ -43,6 +43,12 @@ CREATE TABLE IF NOT EXISTS sites (
     is_active        TINYINT(1)    NOT NULL DEFAULT 1,
     tags             VARCHAR(255)  NULL,
     uptime_percentage DECIMAL(5,2) NOT NULL DEFAULT 100.00,
+    consecutive_failures INT UNSIGNED NOT NULL DEFAULT 0,
+    failure_threshold INT UNSIGNED NOT NULL DEFAULT 3,
+    consecutive_recoveries INT UNSIGNED NOT NULL DEFAULT 0,
+    recovery_threshold INT UNSIGNED NOT NULL DEFAULT 3,
+    last_down_alert_time TIMESTAMP NULL,
+    last_recovery_alert_time TIMESTAMP NULL,
     created_at       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_active (is_active)
 ) ENGINE=InnoDB;
@@ -143,6 +149,19 @@ SQL;
             }
         } catch (Exception $e) {
             error_log('Index migration skipped: ' . $e->getMessage());
+        }
+
+        // Add failure threshold columns for smarter alerting (Phase 2.5)
+        $siteCols = $pdo->query('SHOW COLUMNS FROM sites')->fetchAll(PDO::FETCH_COLUMN);
+        
+        if (!in_array('failure_threshold', $siteCols)) {
+            $pdo->exec('ALTER TABLE sites ADD COLUMN consecutive_failures INT UNSIGNED NOT NULL DEFAULT 0 AFTER uptime_percentage');
+            $pdo->exec('ALTER TABLE sites ADD COLUMN failure_threshold INT UNSIGNED NOT NULL DEFAULT 3 AFTER consecutive_failures');
+            $pdo->exec('ALTER TABLE sites ADD COLUMN consecutive_recoveries INT UNSIGNED NOT NULL DEFAULT 0 AFTER failure_threshold');
+            $pdo->exec('ALTER TABLE sites ADD COLUMN recovery_threshold INT UNSIGNED NOT NULL DEFAULT 3 AFTER consecutive_recoveries');
+            $pdo->exec('ALTER TABLE sites ADD COLUMN last_down_alert_time TIMESTAMP NULL AFTER recovery_threshold');
+            $pdo->exec('ALTER TABLE sites ADD COLUMN last_recovery_alert_time TIMESTAMP NULL AFTER last_down_alert_time');
+            $messages[] = 'Migration: Added smart threshold columns for failure detection.';
         }
 
         // Add check constraints for data integrity (Phase 2 validation)

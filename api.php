@@ -439,7 +439,8 @@ try {
 
 function addSite(array $d): void {
     $fields = ['name', 'url', 'check_type', 'port', 'hostname', 'keyword',
-               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'is_active', 'tags'];
+               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'is_active', 'tags',
+               'failure_threshold', 'recovery_threshold'];
 
     $clean = [];
     foreach ($fields as $f) {
@@ -489,13 +490,24 @@ function addSite(array $d): void {
         jsonError('Keyword required for keyword check');
     }
 
-    $clean['is_active']       = isset($d['is_active']) ? (int) $d['is_active'] : 1;
-    $clean['expected_status'] = (int) ($d['expected_status'] ?? 200);
+    $clean['is_active']           = isset($d['is_active']) ? (int) $d['is_active'] : 1;
+    $clean['expected_status']     = (int) ($d['expected_status'] ?? 200);
+    $clean['failure_threshold']   = (int) ($d['failure_threshold'] ?? 3);
+    $clean['recovery_threshold']  = (int) ($d['recovery_threshold'] ?? 3);
+    
+    // Validate thresholds
+    if ($clean['failure_threshold'] < 1 || $clean['failure_threshold'] > 10) {
+        $clean['failure_threshold'] = 3;
+    }
+    if ($clean['recovery_threshold'] < 1 || $clean['recovery_threshold'] > 10) {
+        $clean['recovery_threshold'] = 3;
+    }
 
     $id = Database::insert(
         'INSERT INTO sites (name, url, check_type, port, hostname, keyword,
-            expected_status, alert_email, alert_phone, alert_telegram, is_active, tags)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+            expected_status, alert_email, alert_phone, alert_telegram, is_active, tags,
+            failure_threshold, recovery_threshold)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         array_values($clean)
     );
     jsonOk(['created' => $id, 'message' => 'Monitor added successfully']);
@@ -506,7 +518,8 @@ function updateSite(array $d): void {
     $id = (int) $d['id'];
 
     $fields = ['name', 'url', 'check_type', 'port', 'hostname', 'keyword',
-               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'is_active', 'tags'];
+               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'is_active', 'tags',
+               'failure_threshold', 'recovery_threshold'];
 
     $clean = [];
     foreach ($fields as $f) {
@@ -556,12 +569,23 @@ function updateSite(array $d): void {
         jsonError('Keyword required for keyword check');
     }
 
-    $clean['is_active']       = isset($d['is_active']) ? (int) $d['is_active'] : 1;
-    $clean['expected_status'] = (int) ($d['expected_status'] ?? 200);
+    $clean['is_active']           = isset($d['is_active']) ? (int) $d['is_active'] : 1;
+    $clean['expected_status']     = (int) ($d['expected_status'] ?? 200);
+    $clean['failure_threshold']   = (int) ($d['failure_threshold'] ?? 3);
+    $clean['recovery_threshold']  = (int) ($d['recovery_threshold'] ?? 3);
+    
+    // Validate thresholds
+    if ($clean['failure_threshold'] < 1 || $clean['failure_threshold'] > 10) {
+        $clean['failure_threshold'] = 3;
+    }
+    if ($clean['recovery_threshold'] < 1 || $clean['recovery_threshold'] > 10) {
+        $clean['recovery_threshold'] = 3;
+    }
 
     Database::execute(
         'UPDATE sites SET name=?, url=?, check_type=?, port=?, hostname=?, keyword=?,
-            expected_status=?, alert_email=?, alert_phone=?, alert_telegram=?, is_active=?, tags=?
+            expected_status=?, alert_email=?, alert_phone=?, alert_telegram=?, is_active=?, tags=?,
+            failure_threshold=?, recovery_threshold=?
             WHERE id=?',
         array_merge(array_values($clean), [$id])
     );

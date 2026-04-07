@@ -60,49 +60,86 @@ foreach ($sites as $site) {
     );
 
     // -------------------------------------------------------------------------
-    // 5. Incident tracking: detect transitions
+    // 5. Smart threshold-based incident tracking
     // -------------------------------------------------------------------------
     try {
         $db = Database::getInstance();
         $db->beginTransaction();
 
-        $prevLog = Database::fetchOne(
-            'SELECT status FROM logs WHERE site_id = ? ORDER BY created_at DESC LIMIT 1 OFFSET 1',
-            [$siteId]
-        );
-        $prevStatus = $prevLog['status'] ?? 'up';
+        $failureThreshold = (int) ($site['failure_threshold'] ?? 3);
+        $recoveryThreshold = (int) ($site['recovery_threshold'] ?? 3);
 
-        if ($result['status'] === 'down' && $prevStatus !== 'down') {
-            // Site just went DOWN — open a new incident
-            $existingIncident = Database::fetchOne(
-                'SELECT id FROM incidents WHERE site_id = ? AND ended_at IS NULL LIMIT 1',
+        if ($result['status'] === 'down') {
+            // Increment consecutive failures, reset recoveries
+            Database::execute(
+                'UPDATE sites SET consecutive_failures = consecutive_failures + 1, consecutive_recoveries = 0 WHERE id = ?',
                 [$siteId]
             );
-            if (!$existingIncident) {
-                Database::execute(
-                    'INSERT INTO incidents (site_id, started_at, error_message) VALUES (?, NOW(), ?)',
-                    [$siteId, $result['error_message']]
+            
+            $currentFailures = (int) $site['consecutive_failures'] + 1;
+            
+            // Only trigger DOWN alert once we hit the threshold
+            if ($currentFailures === $failureThreshold) {
+                $existingIncident = Database::fetchOne(
+                    'SELECT id FROM incidents WHERE site_id = ? AND ended_at IS NULL LIMIT 1',
+                    [$siteId]
                 );
-                Alert::send($site, $result, 'down');
-                echo "  [DOWN] {$site['name']}: {$result['error_message']}" . PHP_EOL;
-                $errors++;
+                if (!$existingIncident) {
+                    Database::execute(
+                        'INSERT INTO incidents (site_id, started_at, error_message) VALUES (?, NOW(), ?)',
+                        [$siteId, $result['error_message']]
+                    );
+                    Alert::send($site, $result, 'down');
+                    Database::execute(
+                        'UPDATE sites SET last_down_alert_time = NOW() WHERE id = ?',
+                        [$siteId]
+                    );
+                    echo "  [DOWN-ALERT] {$site['name']} (after $currentFailures consecutive failures): {$result['error_message']}" . PHP_EOL;
+                    $errors++;
+                }
+            } elseif ($currentFailures < $failureThreshold) {
+                echo "  [FAILING] {$site['name']} ($currentFailures/$failureThreshold failures): {$result['error_message']}" . PHP_EOL;
             }
 
-        } elseif ($result['status'] === 'up' && $prevStatus === 'down') {
-            // Site just came back UP — close the open incident
+        } else {
+            // Status is UP
+            // Increment consecutive recoveries, reset failures
+            Database::execute(
+                'UPDATE sites SET consecutive_recoveries = consecutive_recoveries + 1, consecutive_failures = 0 WHERE id = ?',
+                [$siteId]
+            );
+
+            $currentRecoveries = (int) $site['consecutive_recoveries'] + 1;
+            
+            // Check if we had an open incident
             $openIncident = Database::fetchOne(
                 'SELECT id, started_at FROM incidents WHERE site_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1',
                 [$siteId]
             );
+
             if ($openIncident) {
-                $duration = time() - strtotime($openIncident['started_at']);
-                Database::execute(
-                    'UPDATE incidents SET ended_at = NOW(), duration_seconds = ? WHERE id = ?',
-                    [$duration, $openIncident['id']]
-                );
+                // Only send recovery alert once we hit recovery threshold
+                if ($currentRecoveries === $recoveryThreshold) {
+                    $duration = time() - strtotime($openIncident['started_at']);
+                    Database::execute(
+                        'UPDATE incidents SET ended_at = NOW(), duration_seconds = ? WHERE id = ?',
+                        [$duration, $openIncident['id']]
+                    );
+                    Alert::send($site, $result, 'recovery');
+                    Database::execute(
+                        'UPDATE sites SET last_recovery_alert_time = NOW() WHERE id = ?',
+                        [$siteId]
+                    );
+                    echo "  [RECOVERY-ALERT] {$site['name']} recovered (after $currentRecoveries consecutive successes)" . PHP_EOL;
+                } elseif ($currentRecoveries < $recoveryThreshold) {
+                    echo "  [RECOVERING] {$site['name']} ($currentRecoveries/$recoveryThreshold successes)" . PHP_EOL;
+                }
+            } else {
+                // No open incident, just reset counters if approaching threshold
+                if ($currentRecoveries === 1) {
+                    echo "  [OK] {$site['name']}: " . ($result['response_time'] ?? 0) . "ms" . PHP_EOL;
+                }
             }
-            Alert::send($site, $result, 'recovery');
-            echo "  [UP]   {$site['name']}: recovered" . PHP_EOL;
         }
 
         $db->commit();
@@ -123,7 +160,7 @@ foreach ($sites as $site) {
 }
 
 // -------------------------------------------------------------------------
-// 6. Aggregate stats (runs every minute but queries guard against duplicates)
+// 7. Aggregate stats (runs every minute but queries guard against duplicates)
 // -------------------------------------------------------------------------
 Statistics::aggregateHourlyStats();
 
