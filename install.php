@@ -284,7 +284,7 @@ SQL;
         // Add check_locations column to sites
         $siteCols = $pdo->query('SHOW COLUMNS FROM sites')->fetchAll(PDO::FETCH_COLUMN);
         if (!in_array('check_locations', $siteCols)) {
-            $pdo->exec("ALTER TABLE sites ADD COLUMN check_locations VARCHAR(200) NULL DEFAULT 'local' AFTER check_interval COMMENT 'Comma-separated location keys'");
+            $pdo->exec("ALTER TABLE sites ADD COLUMN check_locations VARCHAR(200) NULL DEFAULT 'local' AFTER check_interval");
             $messages[] = 'Migration: Added check_locations column to sites.';
         }
 
