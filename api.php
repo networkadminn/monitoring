@@ -253,6 +253,18 @@ try {
             jsonOk($logs);
             break;
 
+        // Multi-location results for a site
+        case 'location_results':
+            $id = (int)($_GET['id'] ?? 0);
+            if (!$id) jsonError('id required', 400);
+            require_once MONITOR_ROOT . '/includes/MultiLocation.php';
+            jsonOk([
+                'latest'    => MultiLocation::getLatestResults($id),
+                'history'   => MultiLocation::getLocationHistory($id, 24),
+                'locations' => MultiLocation::getAllLocations(),
+            ]);
+            break;
+
         // Purge old logs manually
         case 'purge_logs':
             if ($method !== 'POST') jsonError('POST required', 405);
@@ -442,7 +454,8 @@ function addSite(array $d): void {
     $fields = ['name', 'url', 'check_type', 'port', 'hostname', 'keyword',
                'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'alert_teams',
                'alert_slack', 'alert_discord', 'alert_webhook', 'alert_pagerduty',
-               'is_active', 'tags', 'failure_threshold', 'recovery_threshold', 'check_interval'];
+               'is_active', 'tags', 'failure_threshold', 'recovery_threshold', 'check_interval',
+               'check_locations'];
 
     $clean = [];
     foreach ($fields as $f) {
@@ -497,6 +510,7 @@ function addSite(array $d): void {
     $clean['failure_threshold']   = (int) ($d['failure_threshold'] ?? 3);
     $clean['recovery_threshold']  = (int) ($d['recovery_threshold'] ?? 3);
     $clean['check_interval']      = in_array((int)($d['check_interval'] ?? 1), [1,5,10,15,30,60]) ? (int)$d['check_interval'] : 1;
+    if (empty($clean['check_locations'])) $clean['check_locations'] = 'local';
 
     if ($clean['failure_threshold'] < 1 || $clean['failure_threshold'] > 10) $clean['failure_threshold'] = 3;
     if ($clean['recovery_threshold'] < 1 || $clean['recovery_threshold'] > 10) $clean['recovery_threshold'] = 3;
@@ -505,8 +519,8 @@ function addSite(array $d): void {
         'INSERT INTO sites (name, url, check_type, port, hostname, keyword,
             expected_status, alert_email, alert_phone, alert_telegram, alert_teams,
             alert_slack, alert_discord, alert_webhook, alert_pagerduty,
-            is_active, tags, failure_threshold, recovery_threshold, check_interval)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            is_active, tags, failure_threshold, recovery_threshold, check_interval, check_locations)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         array_values($clean)
     );
     jsonOk(['created' => $id, 'message' => 'Monitor added successfully']);
@@ -519,7 +533,8 @@ function updateSite(array $d): void {
     $fields = ['name', 'url', 'check_type', 'port', 'hostname', 'keyword',
                'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'alert_teams',
                'alert_slack', 'alert_discord', 'alert_webhook', 'alert_pagerduty',
-               'is_active', 'tags', 'failure_threshold', 'recovery_threshold', 'check_interval'];
+               'is_active', 'tags', 'failure_threshold', 'recovery_threshold', 'check_interval',
+               'check_locations'];
 
     $clean = [];
     foreach ($fields as $f) {
@@ -559,6 +574,7 @@ function updateSite(array $d): void {
     $clean['failure_threshold']  = (int) ($d['failure_threshold'] ?? 3);
     $clean['recovery_threshold'] = (int) ($d['recovery_threshold'] ?? 3);
     $clean['check_interval']     = in_array((int)($d['check_interval'] ?? 1), [1,5,10,15,30,60]) ? (int)$d['check_interval'] : 1;
+    if (empty($clean['check_locations'])) $clean['check_locations'] = 'local';
 
     if ($clean['failure_threshold'] < 1 || $clean['failure_threshold'] > 10) $clean['failure_threshold'] = 3;
     if ($clean['recovery_threshold'] < 1 || $clean['recovery_threshold'] > 10) $clean['recovery_threshold'] = 3;
@@ -567,7 +583,7 @@ function updateSite(array $d): void {
         'UPDATE sites SET name=?, url=?, check_type=?, port=?, hostname=?, keyword=?,
             expected_status=?, alert_email=?, alert_phone=?, alert_telegram=?, alert_teams=?,
             alert_slack=?, alert_discord=?, alert_webhook=?, alert_pagerduty=?,
-            is_active=?, tags=?, failure_threshold=?, recovery_threshold=?, check_interval=?
+            is_active=?, tags=?, failure_threshold=?, recovery_threshold=?, check_interval=?, check_locations=?
             WHERE id=?',
         array_merge(array_values($clean), [$id])
     );

@@ -51,6 +51,30 @@
               </select>
             </div>
           </div>
+          <div class="form-group">
+            <label>Check Locations</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px" id="location-checkboxes">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;font-weight:400;color:var(--text)">
+                <input type="checkbox" name="loc" value="local" checked style="width:14px;height:14px"> 🖥️ Local (Primary)
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;font-weight:400;color:var(--text)">
+                <input type="checkbox" name="loc" value="us-east" style="width:14px;height:14px"> 🇺🇸 US East
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;font-weight:400;color:var(--text)">
+                <input type="checkbox" name="loc" value="us-west" style="width:14px;height:14px"> 🇺🇸 US West
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;font-weight:400;color:var(--text)">
+                <input type="checkbox" name="loc" value="eu-west" style="width:14px;height:14px"> 🇪🇺 EU West
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;font-weight:400;color:var(--text)">
+                <input type="checkbox" name="loc" value="ap-south" style="width:14px;height:14px"> 🌏 Asia Pacific
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;font-weight:400;color:var(--text)">
+                <input type="checkbox" name="loc" value="uk" style="width:14px;height:14px"> 🇬🇧 United Kingdom
+              </label>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px">Site is DOWN only when ALL selected locations report failure — reduces false positives</div>
+          </div>
           <div class="form-group" style="display:flex;align-items:center;gap:10px">
             <input type="checkbox" id="site-active" checked style="width:15px;height:15px;cursor:pointer">
             <label for="site-active" style="margin:0;cursor:pointer">Active (enable monitoring)</label>

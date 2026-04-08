@@ -249,6 +249,45 @@ SQL;
         ) ENGINE=InnoDB");
         $messages[] = 'Migration: api_keys table ready.';
 
+        // location_checks table — latest result per site per location
+        $pdo->exec("CREATE TABLE IF NOT EXISTS location_checks (
+            id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            site_id       INT UNSIGNED NOT NULL,
+            location      VARCHAR(30)  NOT NULL,
+            location_name VARCHAR(80)  NOT NULL,
+            status        ENUM('up','down','warning','unknown') NOT NULL DEFAULT 'unknown',
+            response_time DECIMAL(10,2) NOT NULL DEFAULT 0,
+            error_message TEXT NULL,
+            checked_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_site_location (site_id, location),
+            INDEX idx_site (site_id),
+            FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB");
+        $messages[] = 'Migration: location_checks table ready.';
+
+        // location_checks_history — time-series per location for charts
+        $pdo->exec("CREATE TABLE IF NOT EXISTS location_checks_history (
+            id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            site_id       INT UNSIGNED NOT NULL,
+            location      VARCHAR(30)  NOT NULL,
+            location_name VARCHAR(80)  NOT NULL,
+            status        ENUM('up','down','warning','unknown') NOT NULL,
+            response_time DECIMAL(10,2) NOT NULL DEFAULT 0,
+            error_message TEXT NULL,
+            checked_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_site_loc_time (site_id, location, checked_at),
+            INDEX idx_checked_at (checked_at),
+            FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB");
+        $messages[] = 'Migration: location_checks_history table ready.';
+
+        // Add check_locations column to sites
+        $siteCols = $pdo->query('SHOW COLUMNS FROM sites')->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('check_locations', $siteCols)) {
+            $pdo->exec("ALTER TABLE sites ADD COLUMN check_locations VARCHAR(200) NULL DEFAULT 'local' AFTER check_interval COMMENT 'Comma-separated location keys'");
+            $messages[] = 'Migration: Added check_locations column to sites.';
+        }
+
         // ── Sample data ───────────────────────────────────────────────────────
         if (isset($_POST['sample_data'])) {
             $samples = [

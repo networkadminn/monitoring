@@ -844,6 +844,11 @@ async function openSiteModal(id = null) {
       document.getElementById('site-failure-threshold').value   = s.failure_threshold || 3;
       document.getElementById('site-recovery-threshold').value  = s.recovery_threshold || 3;
       document.getElementById('site-interval').value   = s.check_interval || 1;
+      // Load check locations
+      const savedLocs = (s.check_locations || 'local').split(',').map(l => l.trim());
+      document.querySelectorAll('#location-checkboxes input[name="loc"]').forEach(cb => {
+        cb.checked = savedLocs.includes(cb.value);
+      });
     } catch (err) {
       showToast('Failed to load monitor: ' + err.message, 'error');
       return;
@@ -969,6 +974,7 @@ async function saveSite() {
     failure_threshold:   parseInt(document.getElementById('site-failure-threshold').value) || 3,
     recovery_threshold:  parseInt(document.getElementById('site-recovery-threshold').value) || 3,
     check_interval:      parseInt(document.getElementById('site-interval')?.value) || 1,
+    check_locations:     [...document.querySelectorAll('#location-checkboxes input[name="loc"]:checked')].map(el => el.value).join(',') || 'local',
   };
 
   try {

@@ -13,7 +13,8 @@ try {
     require_once MONITOR_ROOT . '/includes/Alert.php';
     require_once MONITOR_ROOT . '/includes/Statistics.php';
     require_once MONITOR_ROOT . '/includes/Helpers.php';
-require_once MONITOR_ROOT . '/includes/MaintenanceWindow.php';
+    require_once MONITOR_ROOT . '/includes/MaintenanceWindow.php';
+    require_once MONITOR_ROOT . '/includes/MultiLocation.php';
 
     // Autoload PHPMailer if composer is available
     if (file_exists(MONITOR_ROOT . '/vendor/autoload.php')) {
@@ -83,6 +84,36 @@ foreach ($sites as $site) {
         }
 
         $result = Checker::check($site);
+
+        // -------------------------------------------------------------------------
+        // Multi-location check (if enabled for this site)
+        // -------------------------------------------------------------------------
+        $enabledLocations = MultiLocation::getEnabledLocations($site);
+        if (count($enabledLocations) > 1) {
+            $locationResults = MultiLocation::checkAll($site);
+            // Save latest snapshot
+            MultiLocation::saveResults($siteId, $locationResults);
+            // Save history for charts
+            foreach ($locationResults as $lr) {
+                Database::execute(
+                    'INSERT INTO location_checks_history
+                        (site_id, location, location_name, status, response_time, error_message, checked_at)
+                     VALUES (?, ?, ?, ?, ?, ?, NOW())',
+                    [$siteId, $lr['location'], $lr['location_name'], $lr['status'], $lr['response_time'], $lr['error_message']]
+                );
+            }
+            // Aggregate: override result with multi-location consensus
+            $aggregated = MultiLocation::aggregate($locationResults);
+            $result['status']        = $aggregated['status'];
+            $result['response_time'] = $aggregated['response_time'];
+            $result['error_message'] = $aggregated['error_message'];
+
+            $downLocs = array_filter($locationResults, fn($r) => $r['status'] === 'down');
+            if (!empty($downLocs)) {
+                $locNames = implode(', ', array_column($downLocs, 'location_name'));
+                echo "  [MULTI-LOC] {$site['name']}: down from $locNames" . PHP_EOL;
+            }
+        }
 
         // -------------------------------------------------------------------------
         // 4. Save log entry
