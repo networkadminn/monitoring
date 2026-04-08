@@ -1,110 +1,104 @@
 <?php
 // =============================================================================
 // config.php - Central configuration for the monitoring system
-// Loads settings from .env file with safe defaults
 // =============================================================================
 
-// Helper function to load environment variable with fallback
-if (!function_exists('getEnv')) {
-    function getEnv(string $key, $default = null) {
-        $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key) ?? $default;
-        return $value === false ? $default : $value;
-    }
-}
-
-// Load .env file if it exists
+// Load .env file using parse_ini_file (most reliable method)
 $envPath = __DIR__ . '/.env';
+$envVars = [];
 if (file_exists($envPath)) {
-    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (strpos($line, '#') === 0 || strpos($line, '=') === false) {
-            continue;
-        }
-        [$key, $value] = explode('=', $line, 2);
-        $key = trim($key);
-        $value = trim($value, '\'"');
-        if (!isset($_ENV[$key])) {
-            $_ENV[$key] = $value;
-        }
-    }
-}
-
-// Manual override: ensure critical values are loaded from .env
-// This handles cases where $_ENV population fails
-if (file_exists($envPath)) {
-    $envContent = file_get_contents($envPath);
-    $criticalKeys = ['DASHBOARD_USER', 'DASHBOARD_PASS', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS', 'TIMEZONE'];
-    foreach ($criticalKeys as $key) {
-        if (empty($_ENV[$key])) {
-            if (preg_match('/^' . preg_quote($key) . '\s*=\s*(.+?)$/m', $envContent, $matches)) {
-                $_ENV[$key] = trim($matches[1], '\'" ');
+    $envVars = parse_ini_file($envPath, false, INI_SCANNER_RAW);
+    if ($envVars === false) {
+        // Fallback: manual parsing
+        $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '#' || $line[0] === ';') {
+                continue;
+            }
+            if (strpos($line, '=') !== false) {
+                list($key, $value) = explode('=', $line, 2);
+                $key = trim($key);
+                $value = trim($value, " \t\n\r\0\x0B\"'");
+                $envVars[$key] = $value;
             }
         }
+    }
+}
+
+// Helper function to get environment variable
+function getEnvValue($key, $default = null) {
+    global $envVars;
+    return $envVars[$key] ?? $default;
+}
+
+// Alias for backward compatibility
+if (!function_exists('getEnv')) {
+    function getEnv($key, $default = null) {
+        return getEnvValue($key, $default);
     }
 }
 
 // =============================================================================
 // Database Configuration
 // =============================================================================
-define('DB_HOST', getEnv('DB_HOST', 'localhost'));
-define('DB_NAME', getEnv('DB_NAME', 'site_monitor'));
-define('DB_USER', getEnv('DB_USER', 'monitor_user'));
-define('DB_PASS', getEnv('DB_PASS', ''));
-define('DB_CHARSET', getEnv('DB_CHARSET', 'utf8mb4'));
+define('DB_HOST', getEnvValue('DB_HOST', 'localhost'));
+define('DB_NAME', getEnvValue('DB_NAME', 'site_monitor'));
+define('DB_USER', getEnvValue('DB_USER', 'monitor_user'));
+define('DB_PASS', getEnvValue('DB_PASS', ''));
+define('DB_CHARSET', getEnvValue('DB_CHARSET', 'utf8mb4'));
 
 // =============================================================================
 // SMTP / Email Configuration
 // =============================================================================
-define('SMTP_HOST', getEnv('SMTP_HOST', 'localhost'));
-define('SMTP_PORT', (int) getEnv('SMTP_PORT', 465));
-define('SMTP_USER', getEnv('SMTP_USER', ''));
-define('SMTP_PASS', getEnv('SMTP_PASS', ''));
-define('FROM_EMAIL', getEnv('FROM_EMAIL', 'noreply@example.com'));
-define('FROM_NAME', getEnv('FROM_NAME', 'Site Monitor'));
+define('SMTP_HOST', getEnvValue('SMTP_HOST', 'localhost'));
+define('SMTP_PORT', (int) getEnvValue('SMTP_PORT', 465));
+define('SMTP_USER', getEnvValue('SMTP_USER', ''));
+define('SMTP_PASS', getEnvValue('SMTP_PASS', ''));
+define('FROM_EMAIL', getEnvValue('FROM_EMAIL', 'noreply@example.com'));
+define('FROM_NAME', getEnvValue('FROM_NAME', 'Site Monitor'));
 
 // =============================================================================
 // Monitoring Behaviour
 // =============================================================================
-define('ALERT_COOLDOWN', (int) getEnv('ALERT_COOLDOWN', 3600));   // seconds between repeat alerts per site
-define('CHECK_TIMEOUT', (int) getEnv('CHECK_TIMEOUT', 30));       // seconds before a check times out
-define('LOG_RETENTION_DAYS', (int) getEnv('LOG_RETENTION_DAYS', 90));  // days to keep raw logs
+define('ALERT_COOLDOWN', (int) getEnvValue('ALERT_COOLDOWN', 3600));
+define('CHECK_TIMEOUT', (int) getEnvValue('CHECK_TIMEOUT', 30));
+define('LOG_RETENTION_DAYS', (int) getEnvValue('LOG_RETENTION_DAYS', 90));
 
 // =============================================================================
 // Dashboard Authentication
-// To generate a new hash: php -r "echo password_hash('yourpassword', PASSWORD_BCRYPT);"
 // =============================================================================
-define('DASHBOARD_AUTH', getEnv('DASHBOARD_AUTH', 'true') === 'true');
-define('DASHBOARD_USER', getEnv('DASHBOARD_USER', 'admin'));
-define('DASHBOARD_PASS', getEnv('DASHBOARD_PASS', ''));
+define('DASHBOARD_AUTH', getEnvValue('DASHBOARD_AUTH', 'true') === 'true');
+define('DASHBOARD_USER', getEnvValue('DASHBOARD_USER', 'admin'));
+define('DASHBOARD_PASS', getEnvValue('DASHBOARD_PASS', ''));
 
 // =============================================================================
 // Application Settings
 // =============================================================================
-define('APP_URL', getEnv('APP_URL', 'http://localhost'));
-define('APP_ENV', getEnv('APP_ENV', 'production'));
+define('APP_URL', getEnvValue('APP_URL', 'http://localhost'));
+define('APP_ENV', getEnvValue('APP_ENV', 'production'));
 
 // =============================================================================
 // Optional Alert Integrations
 // =============================================================================
-define('ENABLE_SMS_ALERTS', getEnv('ENABLE_SMS_ALERTS', 'false') === 'true');
-define('SMS_API_ENDPOINT', getEnv('SMS_API_ENDPOINT', ''));
-define('SMS_API_KEY', getEnv('SMS_API_KEY', ''));
+define('ENABLE_SMS_ALERTS', getEnvValue('ENABLE_SMS_ALERTS', 'false') === 'true');
+define('SMS_API_ENDPOINT', getEnvValue('SMS_API_ENDPOINT', ''));
+define('SMS_API_KEY', getEnvValue('SMS_API_KEY', ''));
 
-define('ENABLE_TELEGRAM_ALERTS', getEnv('ENABLE_TELEGRAM_ALERTS', 'false') === 'true');
-define('TELEGRAM_BOT_TOKEN', getEnv('TELEGRAM_BOT_TOKEN', ''));
-define('TELEGRAM_CHAT_ID', getEnv('TELEGRAM_CHAT_ID', ''));
+define('ENABLE_TELEGRAM_ALERTS', getEnvValue('ENABLE_TELEGRAM_ALERTS', 'false') === 'true');
+define('TELEGRAM_BOT_TOKEN', getEnvValue('TELEGRAM_BOT_TOKEN', ''));
+define('TELEGRAM_CHAT_ID', getEnvValue('TELEGRAM_CHAT_ID', ''));
 
-define('ENABLE_TEAMS_ALERTS', getEnv('ENABLE_TEAMS_ALERTS', 'true') === 'true');
-define('TEAMS_WEBHOOK_URL', getEnv('TEAMS_WEBHOOK_URL', ''));
+define('ENABLE_TEAMS_ALERTS', getEnvValue('ENABLE_TEAMS_ALERTS', 'true') === 'true');
+define('TEAMS_WEBHOOK_URL', getEnvValue('TEAMS_WEBHOOK_URL', ''));
 
 // =============================================================================
 // SSL Certificate Monitoring
 // =============================================================================
-define('SSL_EXPIRY_WARNING_DAYS', (int) getEnv('SSL_EXPIRY_WARNING_DAYS', 30));  // Alert when cert expires in N days
+define('SSL_EXPIRY_WARNING_DAYS', (int) getEnvValue('SSL_EXPIRY_WARNING_DAYS', 30));
 
 // =============================================================================
 // Timezone
 // =============================================================================
-$timezone = getEnv('TIMEZONE', 'UTC');
-// Fallback to UTC if timezone is empty
+$timezone = getEnvValue('TIMEZONE', 'UTC');
 date_default_timezone_set(!empty($timezone) ? $timezone : 'UTC');
