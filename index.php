@@ -150,6 +150,20 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
     <!-- Page content -->
     <div class="page-content">
 
+      <!-- Down sites alert banner (shown only when sites are down) -->
+      <?php if ($health['sites_down'] > 0): ?>
+      <div class="alert-banner" id="alert-banner">
+        <div class="alert-banner-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="alert-banner-text">
+          <strong><?= $health['sites_down'] ?> monitor<?= $health['sites_down'] > 1 ? 's are' : ' is' ?> currently down</strong> — immediate attention required
+          <div class="alert-banner-sites" id="alert-banner-sites"></div>
+        </div>
+        <a href="sites.php" class="btn btn-danger btn-sm">View All</a>
+      </div>
+      <?php endif; ?>
+
       <!-- Stat cards -->
       <div class="cards">
         <div class="card blue">
