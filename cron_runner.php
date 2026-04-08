@@ -13,6 +13,7 @@ try {
     require_once MONITOR_ROOT . '/includes/Alert.php';
     require_once MONITOR_ROOT . '/includes/Statistics.php';
     require_once MONITOR_ROOT . '/includes/Helpers.php';
+require_once MONITOR_ROOT . '/includes/MaintenanceWindow.php';
 
     // Autoload PHPMailer if composer is available
     if (file_exists(MONITOR_ROOT . '/vendor/autoload.php')) {
@@ -56,8 +57,14 @@ foreach ($sites as $site) {
     
     try {
         // -------------------------------------------------------------------------
-        // 3. Run the appropriate check
+        // 3. Run the appropriate check (skip if in maintenance window)
         // -------------------------------------------------------------------------
+        if (MaintenanceWindow::isActive($siteId)) {
+            echo "  [MAINTENANCE] {$site['name']}: skipping checks during maintenance window" . PHP_EOL;
+            $checked++;
+            continue;
+        }
+
         $result = Checker::check($site);
 
         // -------------------------------------------------------------------------
@@ -200,6 +207,24 @@ try {
     // Aggregate daily stats once per day (around midnight)
     if (date('H:i') === '00:01') {
         Statistics::aggregateDailyUptime();
+    }
+
+    // Send weekly report every Monday at 08:00
+    if (date('N') === '1' && date('H:i') === '08:00') {
+        require_once MONITOR_ROOT . '/includes/ReportMailer.php';
+        if (!empty(FROM_EMAIL)) {
+            ReportMailer::sendWeeklyReport(FROM_EMAIL);
+            echo '  [REPORT] Weekly report sent to ' . FROM_EMAIL . PHP_EOL;
+        }
+    }
+
+    // Send monthly report on 1st of month at 08:00
+    if (date('j') === '1' && date('H:i') === '08:00') {
+        require_once MONITOR_ROOT . '/includes/ReportMailer.php';
+        if (!empty(FROM_EMAIL)) {
+            ReportMailer::sendMonthlyReport(FROM_EMAIL);
+            echo '  [REPORT] Monthly report sent to ' . FROM_EMAIL . PHP_EOL;
+        }
     }
 } catch (Throwable $e) {
     echo "  [WARNING] Failed to aggregate stats: {$e->getMessage()}" . PHP_EOL;

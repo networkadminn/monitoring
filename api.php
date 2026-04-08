@@ -263,6 +263,87 @@ try {
             jsonOk(['deleted' => $deleted]);
             break;
 
+        // Maintenance windows
+        case 'add_maintenance':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            $d = json_decode(file_get_contents('php://input'), true);
+            $siteId = (int)($d['site_id'] ?? 0);
+            if (!$siteId) jsonError('site_id required', 400);
+            if (empty($d['title'])) jsonError('title required', 400);
+            if (empty($d['start_time']) || empty($d['end_time'])) jsonError('start_time and end_time required', 400);
+            require_once MONITOR_ROOT . '/includes/MaintenanceWindow.php';
+            $id = MaintenanceWindow::create($siteId, $d['title'], $d['start_time'], $d['end_time'], $d['description'] ?? '');
+            jsonOk(['id' => $id]);
+            break;
+
+        case 'delete_maintenance':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            $id = (int)($_GET['id'] ?? 0);
+            if (!$id) jsonError('id required', 400);
+            require_once MONITOR_ROOT . '/includes/MaintenanceWindow.php';
+            MaintenanceWindow::delete($id);
+            jsonOk(['deleted' => $id]);
+            break;
+
+        // Status page config
+        case 'save_status_page':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            $d = json_decode(file_get_contents('php://input'), true);
+            require_once MONITOR_ROOT . '/includes/StatusPage.php';
+            StatusPage::saveConfig([
+                'title'       => substr(trim($d['title'] ?? 'Service Status'), 0, 120),
+                'description' => substr(trim($d['description'] ?? ''), 0, 300),
+                'logo_url'    => substr(trim($d['logo_url'] ?? ''), 0, 500),
+                'is_public'   => (int)($d['is_public'] ?? 1),
+                'show_values' => (int)($d['show_values'] ?? 1),
+                'accent_color'=> preg_match('/^#[0-9a-fA-F]{6}$/', $d['accent_color'] ?? '') ? $d['accent_color'] : '#3b82f6',
+                'footer_text' => substr(trim($d['footer_text'] ?? ''), 0, 300),
+            ]);
+            jsonOk(['saved' => true]);
+            break;
+
+        // API keys
+        case 'create_api_key':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            $d    = json_decode(file_get_contents('php://input'), true);
+            $name = substr(trim($d['name'] ?? ''), 0, 80);
+            if (!$name) jsonError('name required', 400);
+            $key  = 'sm_' . bin2hex(random_bytes(24));
+            $hash = hash('sha256', $key);
+            Database::insert(
+                'INSERT INTO api_keys (name, key_hash, key_prefix, created_at) VALUES (?, ?, ?, NOW())',
+                [$name, $hash, substr($key, 0, 10)]
+            );
+            jsonOk(['key' => $key, 'name' => $name, 'prefix' => substr($key, 0, 10)]);
+            break;
+
+        case 'list_api_keys':
+            jsonOk(Database::fetchAll('SELECT id, name, key_prefix, last_used_at, created_at FROM api_keys ORDER BY created_at DESC'));
+            break;
+
+        case 'delete_api_key':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            $id = (int)($_GET['id'] ?? 0);
+            if (!$id) jsonError('id required', 400);
+            Database::execute('DELETE FROM api_keys WHERE id = ?', [$id]);
+            jsonOk(['deleted' => $id]);
+            break;
+
+        // Send report manually
+        case 'send_report':
+            if ($method !== 'POST') jsonError('POST required', 405);
+            $d    = json_decode(file_get_contents('php://input'), true);
+            $type = $d['type'] ?? 'weekly';
+            $to   = trim($d['email'] ?? FROM_EMAIL);
+            if (!filter_var($to, FILTER_VALIDATE_EMAIL)) jsonError('Invalid email', 400);
+            require_once MONITOR_ROOT . '/includes/ReportMailer.php';
+            if ($type === 'monthly') {
+                ReportMailer::sendMonthlyReport($to);
+            } else {
+                ReportMailer::sendWeeklyReport($to);
+            }
+            jsonOk(['sent' => true, 'to' => $to]);
+            break;
         // Run cron manually
         case 'run_cron':
             if ($method !== 'POST') jsonError('POST required', 405);
@@ -359,8 +440,9 @@ try {
 
 function addSite(array $d): void {
     $fields = ['name', 'url', 'check_type', 'port', 'hostname', 'keyword',
-               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'alert_teams', 'is_active', 'tags',
-               'failure_threshold', 'recovery_threshold'];
+               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'alert_teams',
+               'alert_slack', 'alert_discord', 'alert_webhook', 'alert_pagerduty',
+               'is_active', 'tags', 'failure_threshold', 'recovery_threshold', 'check_interval'];
 
     $clean = [];
     foreach ($fields as $f) {
@@ -414,20 +496,17 @@ function addSite(array $d): void {
     $clean['expected_status']     = (int) ($d['expected_status'] ?? 200);
     $clean['failure_threshold']   = (int) ($d['failure_threshold'] ?? 3);
     $clean['recovery_threshold']  = (int) ($d['recovery_threshold'] ?? 3);
-    
-    // Validate thresholds
-    if ($clean['failure_threshold'] < 1 || $clean['failure_threshold'] > 10) {
-        $clean['failure_threshold'] = 3;
-    }
-    if ($clean['recovery_threshold'] < 1 || $clean['recovery_threshold'] > 10) {
-        $clean['recovery_threshold'] = 3;
-    }
+    $clean['check_interval']      = in_array((int)($d['check_interval'] ?? 1), [1,5,10,15,30,60]) ? (int)$d['check_interval'] : 1;
+
+    if ($clean['failure_threshold'] < 1 || $clean['failure_threshold'] > 10) $clean['failure_threshold'] = 3;
+    if ($clean['recovery_threshold'] < 1 || $clean['recovery_threshold'] > 10) $clean['recovery_threshold'] = 3;
 
     $id = Database::insert(
         'INSERT INTO sites (name, url, check_type, port, hostname, keyword,
-            expected_status, alert_email, alert_phone, alert_telegram, alert_teams, is_active, tags,
-            failure_threshold, recovery_threshold)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            expected_status, alert_email, alert_phone, alert_telegram, alert_teams,
+            alert_slack, alert_discord, alert_webhook, alert_pagerduty,
+            is_active, tags, failure_threshold, recovery_threshold, check_interval)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         array_values($clean)
     );
     jsonOk(['created' => $id, 'message' => 'Monitor added successfully']);

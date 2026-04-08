@@ -61,6 +61,30 @@ class Alert {
             self::sendTeams($site, $checkResult, $subject, $event);
         }
 
+        // Slack
+        if (!empty($site['alert_slack'])) {
+            require_once __DIR__ . '/NotificationChannels.php';
+            NotificationChannels::sendSlack($site['alert_slack'], $site, $checkResult, $event);
+        }
+
+        // Discord
+        if (!empty($site['alert_discord'])) {
+            require_once __DIR__ . '/NotificationChannels.php';
+            NotificationChannels::sendDiscord($site['alert_discord'], $site, $checkResult, $event);
+        }
+
+        // Generic Webhook
+        if (!empty($site['alert_webhook'])) {
+            require_once __DIR__ . '/NotificationChannels.php';
+            NotificationChannels::sendWebhook($site['alert_webhook'], $site, $checkResult, $event);
+        }
+
+        // PagerDuty
+        if (!empty($site['alert_pagerduty'])) {
+            require_once __DIR__ . '/NotificationChannels.php';
+            NotificationChannels::sendPagerDuty($site['alert_pagerduty'], $site, $checkResult, $event);
+        }
+
         // Record that we sent this alert (for cooldown)
         self::recordAlert($siteId, $alertType);
     }
@@ -428,7 +452,7 @@ TEMPLATE;
         }
 
         $to = filter_var(trim($to), FILTER_SANITIZE_EMAIL);
-        if (!self::validateEmail($to)) {
+        if (!validateEmail($to)) {
             throw new Exception('Invalid recipient email: ' . $to);
         }
 
