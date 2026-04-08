@@ -11,7 +11,9 @@ require_once MONITOR_ROOT . '/includes/Checker.php';
 require_once MONITOR_ROOT . '/includes/Helpers.php';
 require_once MONITOR_ROOT . '/includes/auth.php';
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 header('Content-Type: application/json');
 header('X-Content-Type-Options: nosniff');

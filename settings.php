@@ -4,7 +4,9 @@ require_once MONITOR_ROOT . '/config.php';
 require_once MONITOR_ROOT . '/includes/Database.php';
 require_once MONITOR_ROOT . '/includes/auth.php';
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 requireLogin();
 
 if (empty($_SESSION['csrf_token'])) {

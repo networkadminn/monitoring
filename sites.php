@@ -5,7 +5,9 @@ require_once MONITOR_ROOT . '/includes/Database.php';
 require_once MONITOR_ROOT . '/includes/Statistics.php';
 require_once MONITOR_ROOT . '/includes/auth.php';
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 requireLogin();
 
 header('Cache-Control: no-cache, no-store, must-revalidate');
