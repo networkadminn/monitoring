@@ -23,7 +23,7 @@ jobs:
           port: 22
           timeout: 60s
           command_timeout: 30m
-          debug: true
+          debug: false
           script: |
             cd /home/euclideesolution/monitoring.euclideesolutions.com
             echo "🔄 Fetching latest changes..."

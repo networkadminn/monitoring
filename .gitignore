@@ -2,3 +2,9 @@ vendor/
 composer.lock
 *.zip
 *.log
+.env
+.env.local
+.env.*.local
+.DS_Store
+*.swp
+.idea/
