@@ -54,8 +54,25 @@ if (empty($sites)) {
 
 foreach ($sites as $site) {
     $siteId = (int) $site['id'];
-    
+
     try {
+        // -------------------------------------------------------------------------
+        // Per-site check interval: skip if not due yet
+        // -------------------------------------------------------------------------
+        $interval = (int) ($site['check_interval'] ?? 1);
+        if ($interval > 1) {
+            $lastCheck = Database::fetchOne(
+                'SELECT created_at FROM logs WHERE site_id = ? ORDER BY created_at DESC LIMIT 1',
+                [$siteId]
+            );
+            if ($lastCheck) {
+                $secondsSinceLast = time() - strtotime($lastCheck['created_at']);
+                if ($secondsSinceLast < ($interval * 60 - 30)) { // 30s grace
+                    continue; // Not due yet
+                }
+            }
+        }
+
         // -------------------------------------------------------------------------
         // 3. Run the appropriate check (skip if in maintenance window)
         // -------------------------------------------------------------------------

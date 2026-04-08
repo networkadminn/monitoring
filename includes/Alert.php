@@ -511,7 +511,7 @@ TEMPLATE;
         
         // Send to all configured emails, let exceptions propagate
         foreach ($emails as $to) {
-            if (!self::validateEmail($to)) {
+            if (!validateEmail($to)) {
                 throw new Exception('Invalid recipient email: ' . $to);
             }
             // This will throw if anything fails
