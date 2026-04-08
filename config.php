@@ -91,4 +91,6 @@ define('SSL_EXPIRY_WARNING_DAYS', (int) getEnv('SSL_EXPIRY_WARNING_DAYS', 30)); 
 // =============================================================================
 // Timezone
 // =============================================================================
-date_default_timezone_set(getEnv('TIMEZONE', 'UTC'));
+$timezone = getEnv('TIMEZONE', 'UTC');
+// Fallback to UTC if timezone is empty
+date_default_timezone_set(!empty($timezone) ? $timezone : 'UTC');
