@@ -5,9 +5,11 @@
 // =============================================================================
 
 // Helper function to load environment variable with fallback
-function getEnv(string $key, $default = null) {
-    $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key) ?? $default;
-    return $value === false ? $default : $value;
+if (!function_exists('getEnv')) {
+    function getEnv(string $key, $default = null) {
+        $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key) ?? $default;
+        return $value === false ? $default : $value;
+    }
 }
 
 // Load .env file if it exists

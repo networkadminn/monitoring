@@ -9,7 +9,8 @@
  * @param string $email Email address to validate
  * @return bool True if valid, false otherwise
  */
-function validateEmail(string $email): bool {
+if (!function_exists('validateEmail')) {
+    function validateEmail(string $email): bool {
     // Trim whitespace
     $email = trim($email);
 
@@ -70,6 +71,7 @@ function validateEmail(string $email): bool {
     $localRegex = '/^(?:(?:[a-zA-Z0-9!#$%&\'*+\-\/=?^_`{|}~]+(?:\.[a-zA-Z0-9!#$%&\'*+\-\/=?^_`{|}~]+)*)|(?:"(?:\\\\[\x00-\x7F]|[^\\\\"])*"))$/';
 
     return (bool) preg_match($localRegex, $local);
+    }
 }
 
 /**
@@ -81,7 +83,8 @@ function validateEmail(string $email): bool {
  * @param int $timeWindow Time window in seconds
  * @return bool True if request is allowed, false if rate limited
  */
-function checkRateLimit(string $identifier, int $maxRequests = 10, int $timeWindow = 60): bool {
+if (!function_exists('checkRateLimit')) {
+    function checkRateLimit(string $identifier, int $maxRequests = 10, int $timeWindow = 60): bool {
     $cacheDir = sys_get_temp_dir() . '/monitor_rate_limits';
     @mkdir($cacheDir, 0755, true);
     
@@ -102,6 +105,7 @@ function checkRateLimit(string $identifier, int $maxRequests = 10, int $timeWind
     
     file_put_contents($limitFile, implode("\n", [...$recent, $now]) . "\n");
     return true;
+    }
 }
 
 /**
@@ -111,7 +115,8 @@ function checkRateLimit(string $identifier, int $maxRequests = 10, int $timeWind
  * @param string $level Log level (info, warn, error, debug)
  * @param string $logFile Optional log file path
  */
-function logMessage(string $message, string $level = 'info', string $logFile = null): void {
+if (!function_exists('logMessage')) {
+    function logMessage(string $message, string $level = 'info', string $logFile = null): void {
     $timestamp = date('Y-m-d H:i:s');
     $formatted = "[$timestamp] [$level] $message";
     
@@ -119,6 +124,7 @@ function logMessage(string $message, string $level = 'info', string $logFile = n
     
     if ($logFile && is_writable(dirname($logFile))) {
         file_put_contents($logFile, $formatted . PHP_EOL, FILE_APPEND);
+    }
     }
 }
 
@@ -129,11 +135,13 @@ function logMessage(string $message, string $level = 'info', string $logFile = n
  * @param int $timeout Timeout in seconds
  * @return array Result array with 'success' and 'result'/'error' keys
  */
-function safeExecute(callable $fn, int $timeout = 30): array {
+if (!function_exists('safeExecute')) {
+    function safeExecute(callable $fn, int $timeout = 30): array {
     try {
         $result = $fn();
         return ['success' => true, 'result' => $result];
     } catch (Throwable $e) {
         return ['success' => false, 'error' => $e->getMessage()];
+    }
     }
 }
