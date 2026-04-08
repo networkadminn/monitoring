@@ -517,8 +517,9 @@ function updateSite(array $d): void {
     $id = (int) $d['id'];
 
     $fields = ['name', 'url', 'check_type', 'port', 'hostname', 'keyword',
-               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'alert_teams', 'is_active', 'tags',
-               'failure_threshold', 'recovery_threshold'];
+               'expected_status', 'alert_email', 'alert_phone', 'alert_telegram', 'alert_teams',
+               'alert_slack', 'alert_discord', 'alert_webhook', 'alert_pagerduty',
+               'is_active', 'tags', 'failure_threshold', 'recovery_threshold', 'check_interval'];
 
     $clean = [];
     foreach ($fields as $f) {
@@ -531,60 +532,42 @@ function updateSite(array $d): void {
     if (!empty($clean['alert_email'])) {
         $split = array_filter(array_map('trim', explode(',', $clean['alert_email'])));
         foreach ($split as $email) {
-            if (!validateEmail($email)) {
-                jsonError('Invalid alert email: ' . htmlspecialchars($email));
-            }
+            if (!validateEmail($email)) jsonError('Invalid alert email: ' . htmlspecialchars($email));
         }
         $clean['alert_email'] = implode(',', $split);
     }
 
     $allowedTypes = ['http','ssl','port','dns','keyword'];
-    if (!in_array($clean['check_type'], $allowedTypes, true)) {
-        jsonError('Invalid check type');
-    }
+    if (!in_array($clean['check_type'], $allowedTypes, true)) jsonError('Invalid check type');
 
     if (in_array($clean['check_type'], ['http', 'keyword', 'ssl'], true)) {
-        if (!filter_var($clean['url'], FILTER_VALIDATE_URL)) {
-            jsonError('Invalid URL format');
-        }
+        if (!filter_var($clean['url'], FILTER_VALIDATE_URL)) jsonError('Invalid URL format');
     }
 
     if ($clean['check_type'] === 'port') {
-        if (empty($clean['hostname']) && empty($clean['url'])) {
-            jsonError('Hostname or URL required for port check');
-        }
+        if (empty($clean['hostname']) && empty($clean['url'])) jsonError('Hostname or URL required for port check');
         $port = (int) $clean['port'];
-        if ($port < 1 || $port > 65535) {
-            jsonError('Invalid port number');
-        }
+        if ($port < 1 || $port > 65535) jsonError('Invalid port number');
         $clean['port'] = $port;
     }
 
-    if ($clean['check_type'] === 'dns' && empty($clean['hostname'])) {
-        jsonError('Hostname required for DNS check');
-    }
+    if ($clean['check_type'] === 'dns' && empty($clean['hostname'])) jsonError('Hostname required for DNS check');
+    if ($clean['check_type'] === 'keyword' && empty($clean['keyword'])) jsonError('Keyword required for keyword check');
 
-    if ($clean['check_type'] === 'keyword' && empty($clean['keyword'])) {
-        jsonError('Keyword required for keyword check');
-    }
+    $clean['is_active']          = isset($d['is_active']) ? (int) $d['is_active'] : 1;
+    $clean['expected_status']    = (int) ($d['expected_status'] ?? 200);
+    $clean['failure_threshold']  = (int) ($d['failure_threshold'] ?? 3);
+    $clean['recovery_threshold'] = (int) ($d['recovery_threshold'] ?? 3);
+    $clean['check_interval']     = in_array((int)($d['check_interval'] ?? 1), [1,5,10,15,30,60]) ? (int)$d['check_interval'] : 1;
 
-    $clean['is_active']           = isset($d['is_active']) ? (int) $d['is_active'] : 1;
-    $clean['expected_status']     = (int) ($d['expected_status'] ?? 200);
-    $clean['failure_threshold']   = (int) ($d['failure_threshold'] ?? 3);
-    $clean['recovery_threshold']  = (int) ($d['recovery_threshold'] ?? 3);
-    
-    // Validate thresholds
-    if ($clean['failure_threshold'] < 1 || $clean['failure_threshold'] > 10) {
-        $clean['failure_threshold'] = 3;
-    }
-    if ($clean['recovery_threshold'] < 1 || $clean['recovery_threshold'] > 10) {
-        $clean['recovery_threshold'] = 3;
-    }
+    if ($clean['failure_threshold'] < 1 || $clean['failure_threshold'] > 10) $clean['failure_threshold'] = 3;
+    if ($clean['recovery_threshold'] < 1 || $clean['recovery_threshold'] > 10) $clean['recovery_threshold'] = 3;
 
     Database::execute(
         'UPDATE sites SET name=?, url=?, check_type=?, port=?, hostname=?, keyword=?,
-            expected_status=?, alert_email=?, alert_phone=?, alert_telegram=?, alert_teams=?, is_active=?, tags=?,
-            failure_threshold=?, recovery_threshold=?
+            expected_status=?, alert_email=?, alert_phone=?, alert_telegram=?, alert_teams=?,
+            alert_slack=?, alert_discord=?, alert_webhook=?, alert_pagerduty=?,
+            is_active=?, tags=?, failure_threshold=?, recovery_threshold=?, check_interval=?
             WHERE id=?',
         array_merge(array_values($clean), [$id])
     );

@@ -171,24 +171,83 @@ SQL;
             $pdo->exec('ALTER TABLE sites ADD COLUMN alert_teams VARCHAR(500) NULL AFTER alert_telegram');
             $messages[] = 'Migration: Added Microsoft Teams webhook support.';
         }
+
+        // ── New feature migrations ─────────────────────────────────────────────
+        $siteCols = $pdo->query('SHOW COLUMNS FROM sites')->fetchAll(PDO::FETCH_COLUMN);
+
+        if (!in_array('alert_slack', $siteCols)) {
+            $pdo->exec('ALTER TABLE sites ADD COLUMN alert_slack VARCHAR(500) NULL AFTER alert_teams');
+            $messages[] = 'Migration: Added Slack webhook column.';
+        }
+        if (!in_array('alert_discord', $siteCols)) {
+            $pdo->exec('ALTER TABLE sites ADD COLUMN alert_discord VARCHAR(500) NULL AFTER alert_slack');
+            $messages[] = 'Migration: Added Discord webhook column.';
+        }
+        if (!in_array('alert_webhook', $siteCols)) {
+            $pdo->exec('ALTER TABLE sites ADD COLUMN alert_webhook VARCHAR(500) NULL AFTER alert_discord');
+            $messages[] = 'Migration: Added generic webhook column.';
+        }
+        if (!in_array('alert_pagerduty', $siteCols)) {
+            $pdo->exec('ALTER TABLE sites ADD COLUMN alert_pagerduty VARCHAR(255) NULL AFTER alert_webhook');
+            $messages[] = 'Migration: Added PagerDuty integration key column.';
+        }
+        if (!in_array('check_interval', $siteCols)) {
+            $pdo->exec('ALTER TABLE sites ADD COLUMN check_interval TINYINT UNSIGNED NOT NULL DEFAULT 1 AFTER recovery_threshold');
+            $messages[] = 'Migration: Added per-site check_interval column.';
         }
 
-        // Add check constraints for data integrity (Phase 2 validation)
-        try {
-            $pdo->exec('ALTER TABLE sites ADD CONSTRAINT check_port_requires_host 
-                        CHECK (check_type != "port" OR hostname IS NOT NULL)');
-            $messages[] = 'Migration: Added check constraint for port monitoring.';
-        } catch (Exception $e) {
-            // Constraint may already exist
-        }
+        // Maintenance windows table
+        $pdo->exec("CREATE TABLE IF NOT EXISTS maintenance_windows (
+            id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            site_id     INT UNSIGNED NOT NULL,
+            title       VARCHAR(200) NOT NULL,
+            description TEXT NULL,
+            start_time  DATETIME NOT NULL,
+            end_time    DATETIME NOT NULL,
+            is_active   TINYINT(1) NOT NULL DEFAULT 1,
+            created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_site (site_id),
+            INDEX idx_times (start_time, end_time),
+            FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB");
+        $messages[] = 'Migration: maintenance_windows table ready.';
 
-        try {
-            $pdo->exec('ALTER TABLE sites ADD CONSTRAINT check_keyword_requires_keyword 
-                        CHECK (check_type != "keyword" OR keyword IS NOT NULL)');
-            $messages[] = 'Migration: Added check constraint for keyword monitoring.';
-        } catch (Exception $e) {
-            // Constraint may already exist
-        }
+        // Status page config table
+        $pdo->exec("CREATE TABLE IF NOT EXISTS status_page_config (
+            id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            title        VARCHAR(120) NOT NULL DEFAULT 'Service Status',
+            description  VARCHAR(300) NULL,
+            logo_url     VARCHAR(500) NULL,
+            is_public    TINYINT(1) NOT NULL DEFAULT 1,
+            show_values  TINYINT(1) NOT NULL DEFAULT 1,
+            accent_color VARCHAR(10) NOT NULL DEFAULT '#3b82f6',
+            footer_text  VARCHAR(300) NULL,
+            updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB");
+        $messages[] = 'Migration: status_page_config table ready.';
+
+        // Status page subscribers
+        $pdo->exec("CREATE TABLE IF NOT EXISTS status_page_subscribers (
+            id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            email      VARCHAR(255) NOT NULL,
+            token      VARCHAR(64) NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_email (email),
+            UNIQUE KEY uq_token (token)
+        ) ENGINE=InnoDB");
+        $messages[] = 'Migration: status_page_subscribers table ready.';
+
+        // API keys table
+        $pdo->exec("CREATE TABLE IF NOT EXISTS api_keys (
+            id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            name         VARCHAR(80) NOT NULL,
+            key_hash     VARCHAR(64) NOT NULL,
+            key_prefix   VARCHAR(12) NOT NULL,
+            last_used_at TIMESTAMP NULL,
+            created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_hash (key_hash)
+        ) ENGINE=InnoDB");
+        $messages[] = 'Migration: api_keys table ready.';
 
         // ── Sample data ───────────────────────────────────────────────────────
         if (isset($_POST['sample_data'])) {

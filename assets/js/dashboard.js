@@ -835,10 +835,15 @@ async function openSiteModal(id = null) {
       document.getElementById('site-expected').value   = s.expected_status || 200;
       document.getElementById('site-email').value      = s.alert_email || '';
       document.getElementById('site-teams').value      = s.alert_teams || '';
+      document.getElementById('site-slack').value      = s.alert_slack || '';
+      document.getElementById('site-discord').value    = s.alert_discord || '';
+      document.getElementById('site-webhook').value    = s.alert_webhook || '';
+      document.getElementById('site-pagerduty').value  = s.alert_pagerduty || '';
       document.getElementById('site-active').checked   = s.is_active == 1;
       document.getElementById('site-tags').value       = s.tags || '';
       document.getElementById('site-failure-threshold').value   = s.failure_threshold || 3;
       document.getElementById('site-recovery-threshold').value  = s.recovery_threshold || 3;
+      document.getElementById('site-interval').value   = s.check_interval || 1;
     } catch (err) {
       showToast('Failed to load monitor: ' + err.message, 'error');
       return;
@@ -955,10 +960,15 @@ async function saveSite() {
     expected_status:     document.getElementById('site-expected').value || 200,
     alert_email:         document.getElementById('site-email').value,
     alert_teams:         document.getElementById('site-teams').value,
+    alert_slack:         document.getElementById('site-slack')?.value || '',
+    alert_discord:       document.getElementById('site-discord')?.value || '',
+    alert_webhook:       document.getElementById('site-webhook')?.value || '',
+    alert_pagerduty:     document.getElementById('site-pagerduty')?.value || '',
     is_active:           document.getElementById('site-active').checked ? 1 : 0,
     tags:                document.getElementById('site-tags').value,
     failure_threshold:   parseInt(document.getElementById('site-failure-threshold').value) || 3,
     recovery_threshold:  parseInt(document.getElementById('site-recovery-threshold').value) || 3,
+    check_interval:      parseInt(document.getElementById('site-interval')?.value) || 1,
   };
 
   try {
