@@ -29,6 +29,20 @@ if (file_exists($envPath)) {
     }
 }
 
+// Manual override: ensure critical values are loaded from .env
+// This handles cases where $_ENV population fails
+if (file_exists($envPath)) {
+    $envContent = file_get_contents($envPath);
+    $criticalKeys = ['DASHBOARD_USER', 'DASHBOARD_PASS', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS', 'TIMEZONE'];
+    foreach ($criticalKeys as $key) {
+        if (empty($_ENV[$key])) {
+            if (preg_match('/^' . preg_quote($key) . '\s*=\s*(.+?)$/m', $envContent, $matches)) {
+                $_ENV[$key] = trim($matches[1], '\'" ');
+            }
+        }
+    }
+}
+
 // =============================================================================
 // Database Configuration
 // =============================================================================
