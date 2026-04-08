@@ -14,6 +14,8 @@ if (empty($_SESSION['csrf_token'])) {
 }
 $csrf = $_SESSION['csrf_token'];
 
+require_once MONITOR_ROOT . '/includes/StatusPage.php';
+
 // System info
 $phpVersion  = PHP_VERSION;
 $dbVersion   = Database::fetchOne('SELECT VERSION() AS v')['v'] ?? 'Unknown';
@@ -21,6 +23,13 @@ $logCount    = Database::fetchOne('SELECT COUNT(*) AS c FROM logs')['c'] ?? 0;
 $siteCount   = Database::fetchOne('SELECT COUNT(*) AS c FROM sites')['c'] ?? 0;
 $oldestLog   = Database::fetchOne('SELECT MIN(created_at) AS d FROM logs')['d'] ?? 'N/A';
 $diskFree    = function_exists('disk_free_space') ? round(disk_free_space('/') / 1073741824, 1) . ' GB' : 'N/A';
+$diskTotal   = function_exists('disk_total_space') ? round(disk_total_space('/') / 1073741824, 1) . ' GB' : 'N/A';
+$memUsage    = function_exists('memory_get_usage') ? round(memory_get_usage(true) / 1048576, 1) . ' MB' : 'N/A';
+$upSites     = Database::fetchOne("SELECT COUNT(*) AS c FROM sites s LEFT JOIN logs l ON l.id=(SELECT id FROM logs WHERE site_id=s.id ORDER BY created_at DESC LIMIT 1) WHERE s.is_active=1 AND l.status='up'")['c'] ?? 0;
+$downSites   = Database::fetchOne("SELECT COUNT(*) AS c FROM sites s LEFT JOIN logs l ON l.id=(SELECT id FROM logs WHERE site_id=s.id ORDER BY created_at DESC LIMIT 1) WHERE s.is_active=1 AND l.status='down'")['c'] ?? 0;
+$apiKeys     = Database::fetchAll('SELECT id, name, key_prefix, last_used_at, created_at FROM api_keys ORDER BY created_at DESC');
+$spConfig    = StatusPage::getConfig();
+$subscribers = Database::fetchOne('SELECT COUNT(*) AS c FROM status_page_subscribers')['c'] ?? 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -51,6 +60,14 @@ $diskFree    = function_exists('disk_free_space') ? round(disk_free_space('/') /
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
         <span>Monitors</span>
       </a>
+      <a class="nav-item" href="maintenance.php">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>Maintenance</span>
+      </a>
+      <a class="nav-item" href="status.php" target="_blank">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Status Page ↗</span>
+      </a>
       <a class="nav-item active" href="settings.php">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
         <span>Settings</span>
@@ -72,7 +89,20 @@ $diskFree    = function_exists('disk_free_space') ? round(disk_free_space('/') /
 
   <main class="main">
     <div class="topbar">
-      <h1>Settings</h1>
+      <div class="topbar-left">
+        <div class="topbar-title">Settings</div>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+    <!-- Settings tabs -->
+    <div style="display:flex;gap:4px;margin-bottom:24px;border-bottom:1px solid var(--border);padding-bottom:0">
+      <?php foreach(['system'=>'System','status_page'=>'Status Page','api_keys'=>'API Keys','reports'=>'Reports','alerts'=>'Alert Tests'] as $tab=>$label): ?>
+      <button class="settings-tab" data-tab="<?= $tab ?>" style="padding:10px 18px;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-size:13px;font-weight:500;cursor:pointer;margin-bottom:-1px;transition:all .15s">
+        <?= $label ?>
+      </button>
+      <?php endforeach; ?>
     </div>
 
     <!-- System Info -->
