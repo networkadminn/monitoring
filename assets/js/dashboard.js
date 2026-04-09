@@ -4,9 +4,13 @@
 
 const API = 'api.php';
 
-// Chart.js global defaults
-Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
-Chart.defaults.font.size = 12;
+// Chart.js global defaults - will be initialized after Chart.js is confirmed loaded
+function initializeChartDefaults() {
+  if (typeof Chart !== 'undefined') {
+    Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+    Chart.defaults.font.size = 12;
+  }
+}
 
 function getChartColor(key) {
   const isLight = document.body.classList.contains('light-theme');
@@ -132,6 +136,8 @@ function getGranularityFromDateRange(start, end) {
 
 // ── Init ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize Chart.js defaults first
+  initializeChartDefaults();
   initTheme();
   initCheckboxDelegation();
 
@@ -668,6 +674,13 @@ async function renderResponseTrendChart(sites) {
   const ids = sites.slice(0, 8).map(s => s.id).join(',');
   if (!ids) return;
 
+  // Check if Chart.js is available
+  if (typeof Chart === 'undefined') {
+    console.error('Chart.js is not loaded');
+    showToast('Chart library not available', 'error');
+    return;
+  }
+
   const ctx = document.getElementById('chart-response-trend');
   if (!ctx) return;
 
@@ -780,6 +793,13 @@ function formatLabels(labels, granularity) {
 
 // ── SSL expiry bar chart ──────────────────────────────────────────────────
 function renderSSLChart(sslData) {
+  // Check if Chart.js is available
+  if (typeof Chart === 'undefined') {
+    console.error('Chart.js is not loaded');
+    showToast('Chart library not available', 'error');
+    return;
+  }
+  
   const ctx = document.getElementById('chart-ssl');
   if (!ctx) return;
   
@@ -837,6 +857,13 @@ function renderSSLChart(sslData) {
 
 // ── Status by type doughnut ───────────────────────────────────────────────
 function renderStatusTypesChart(sites) {
+  // Check if Chart.js is available
+  if (typeof Chart === 'undefined') {
+    console.error('Chart.js is not loaded');
+    showToast('Chart library not available', 'error');
+    return;
+  }
+  
   const ctx = document.getElementById('chart-status-types');
   if (!ctx) return;
   
@@ -897,6 +924,13 @@ function renderStatusTypesChart(sites) {
 
 // ── System-wide uptime trend with flexible time filtering ──────────────────
 async function renderSystemUptimeChart() {
+  // Check if Chart.js is available
+  if (typeof Chart === 'undefined') {
+    console.error('Chart.js is not loaded');
+    showToast('Chart library not available', 'error');
+    return;
+  }
+
   const ctx = document.getElementById('chart-uptime');
   if (!ctx) return;
 
@@ -1003,6 +1037,14 @@ async function renderUptimeChart(sites) {
 async function renderHistogramChart(sites) {
   if (!sites.length) return;
   const id   = sites[0].id;
+  
+  // Check if Chart.js is available
+  if (typeof Chart === 'undefined') {
+    console.error('Chart.js is not loaded');
+    showToast('Chart library not available', 'error');
+    return;
+  }
+  
   const ctx  = document.getElementById('chart-histogram');
   if (!ctx) return;
 
@@ -1063,6 +1105,13 @@ async function renderHistogramChart(sites) {
 
 // ── Health gauge (doughnut) ───────────────────────────────────────────────
 function renderGauge(score) {
+  // Check if Chart.js is available
+  if (typeof Chart === 'undefined') {
+    console.error('Chart.js is not loaded');
+    showToast('Chart library not available', 'error');
+    return;
+  }
+  
   const ctx = document.getElementById('chart-gauge');
   if (!ctx) return;
 
@@ -1572,7 +1621,7 @@ function initTheme() {
   }
   
   // Set Chart.js defaults based on theme (if Chart is available)
-  if (window.Chart) {
+  if (typeof Chart !== 'undefined') {
     Chart.defaults.color = isLight ? '#64748b' : '#7a87a8';
     Chart.defaults.borderColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
   }
@@ -1585,7 +1634,7 @@ function toggleTheme() {
   updateThemeIcons(isLight);
   
   // Update Chart.js defaults for the new theme
-  if (window.Chart) {
+  if (typeof Chart !== 'undefined') {
     Chart.defaults.color = isLight ? '#64748b' : '#7a87a8';
     Chart.defaults.borderColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
   }
