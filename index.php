@@ -118,6 +118,22 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
         </div>
       </div>
       <div class="topbar-actions">
+        <div class="time-filter-controls">
+          <select id="time-range" class="btn btn-ghost btn-sm" style="margin-right:8px">
+            <option value="1h">Last Hour</option>
+            <option value="6h">Last 6 Hours</option>
+            <option value="24h" selected>Last 24 Hours</option>
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="90d">Last 90 Days</option>
+            <option value="custom">Custom Range</option>
+          </select>
+          <div id="custom-range" style="display:none; margin-right:8px">
+            <input type="date" id="start-date" class="btn btn-ghost btn-sm" style="width:auto; padding:4px 8px; margin-right:4px">
+            <span style="color:var(--muted)">to</span>
+            <input type="date" id="end-date" class="btn btn-ghost btn-sm" style="width:auto; padding:4px 8px; margin-left:4px">
+          </div>
+        </div>
         <button class="btn btn-ghost btn-icon btn-sm" id="btn-theme-toggle" title="Toggle Day/Night Mode">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sun-icon"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="moon-icon" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>

@@ -31,6 +31,83 @@ window.addEventListener('error', (e) => {
   showToast('Interface error: ' + (e.error?.message || 'Check console'), 'error');
 });
 
+// Time filtering helpers
+function getTimeFilterParams() {
+  const timeRange = document.getElementById('time-range')?.value || '24h';
+  const customRange = document.getElementById('custom-range');
+  
+  if (timeRange === 'custom' && customRange.style.display !== 'none') {
+    const startDate = document.getElementById('start-date')?.value;
+    const endDate = document.getElementById('end-date')?.value;
+    if (startDate && endDate) {
+      return {
+        startDate: startDate + ' 00:00:00',
+        endDate: endDate + ' 23:59:59',
+        granularity: getGranularityFromDateRange(startDate, endDate)
+      };
+    }
+  }
+  
+  return getTimeRangeParams(timeRange);
+}
+
+function getTimeRangeParams(range) {
+  const now = new Date();
+  let startDate, endDate, granularity;
+  
+  switch (range) {
+    case '1h':
+      startDate = new Date(now.getTime() - 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'minute';
+      break;
+    case '6h':
+      startDate = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'hour';
+      break;
+    case '24h':
+      startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'hour';
+      break;
+    case '7d':
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'day';
+      break;
+    case '30d':
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'day';
+      break;
+    case '90d':
+      startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'week';
+      break;
+    default:
+      startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'hour';
+  }
+  
+  return {
+    startDate: startDate.toISOString().slice(0, 19).replace('T', ' '),
+    endDate: endDate.toISOString().slice(0, 19).replace('T', ' '),
+    granularity: granularity
+  };
+}
+
+function getGranularityFromDateRange(start, end) {
+  const days = Math.ceil((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24));
+  if (days <= 1) return 'hour';
+  if (days <= 7) return 'day';
+  if (days <= 30) return 'day';
+  if (days <= 90) return 'week';
+  return 'month';
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
@@ -52,6 +129,35 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-run-cron')?.addEventListener('click', runManualCheck);
   document.getElementById('btn-bulk-delete')?.addEventListener('click', bulkDeleteSites);
   document.getElementById('btn-theme-toggle')?.addEventListener('click', toggleTheme);
+
+  // Time filter controls
+  const timeRange = document.getElementById('time-range');
+  const customRange = document.getElementById('custom-range');
+  const startDate = document.getElementById('start-date');
+  const endDate = document.getElementById('end-date');
+
+  if (timeRange) {
+    timeRange.addEventListener('change', (e) => {
+      if (e.target.value === 'custom') {
+        customRange.style.display = 'block';
+        // Set default dates (last 30 days)
+        const end = new Date();
+        const start = new Date();
+        start.setDate(start.getDate() - 30);
+        endDate.value = end.toISOString().split('T')[0];
+        startDate.value = start.toISOString().split('T')[0];
+      } else {
+        customRange.style.display = 'none';
+      }
+      loadDashboard(); // Reload charts with new time range
+    });
+  }
+
+  if (startDate && endDate) {
+    [startDate, endDate].forEach(input => {
+      input.addEventListener('change', () => loadDashboard());
+    });
+  }
 
   // Modal save/cancel
   document.getElementById('modal-save')?.addEventListener('click', saveSite);
@@ -117,7 +223,7 @@ async function loadDashboard() {
       renderIncidentsTable(incidents);
       renderSSLChart(ssl);
       renderStatusTypesChart(sites);
-      renderSystemUptimeChart(systemUptime);
+      renderSystemUptimeChart();
       renderResponseTrendChart(sites);
       renderHistogramChart(sites);
       renderGauge(health.health_score);
@@ -476,28 +582,37 @@ function renderIncidentsTable(incidents) {
   }
 }
 
-// ── Response time trend (multi-site line chart) ───────────────────────────
+// ── Response time trend (multi-site line chart) with flexible time filtering
 async function renderResponseTrendChart(sites) {
   if (!sites || !sites.length) return;
   const ids = sites.slice(0, 8).map(s => s.id).join(',');
   if (!ids) return;
 
-  const data = await apiFetch(`response_trend&ids=${ids}`);
+  const timeParams = getTimeFilterParams();
+  const queryParams = new URLSearchParams({
+    action: 'response_trend_flexible',
+    ids: ids,
+    start_date: timeParams.startDate,
+    end_date: timeParams.endDate,
+    granularity: timeParams.granularity
+  });
+
+  const data = await apiFetch(queryParams.toString());
   const ctx  = document.getElementById('chart-response-trend');
   if (!ctx) return;
 
   // Build unified label set
-  const allHours = new Set();
-  Object.values(data).forEach(rows => rows.forEach(r => allHours.add(r.hour)));
-  const labels = [...allHours].sort();
+  const allPeriods = new Set();
+  Object.values(data).forEach(rows => rows.forEach(r => allPeriods.add(r.period)));
+  const labels = [...allPeriods].sort();
 
   const colors = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899'];
   const datasets = sites.slice(0, 8).map((site, i) => {
     const rows = data[site.id] || [];
-    const map  = Object.fromEntries(rows.map(r => [r.hour, r.avg_rt]));
+    const map  = Object.fromEntries(rows.map(r => [r.period, r.avg_rt]));
     return {
       label: site.name,
-      data: labels.map(h => map[h] ?? null),
+      data: labels.map(p => map[p] ?? null),
       borderColor: colors[i],
       backgroundColor: colors[i] + '22',
       tension: 0.4,
@@ -510,7 +625,7 @@ async function renderResponseTrendChart(sites) {
   destroyChart('response-trend');
   charts['response-trend'] = new Chart(ctx, {
     type: 'line',
-    data: { labels: labels.map(h => h.slice(11, 16)), datasets },
+    data: { labels: formatLabels(labels, timeParams.granularity), datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -547,6 +662,24 @@ async function renderResponseTrendChart(sites) {
         <span>${esc(s.name)}</span>
       </div>
     `).join('');
+  }
+}
+
+// Helper to format labels based on granularity
+function formatLabels(labels, granularity) {
+  switch (granularity) {
+    case 'minute':
+      return labels.map(l => l.slice(11, 16));
+    case 'hour':
+      return labels.map(l => l.slice(11, 16));
+    case 'day':
+      return labels.map(l => l.slice(5));
+    case 'week':
+      return labels.map(l => `Week ${l.split('-')[1]}`);
+    case 'month':
+      return labels.map(l => l);
+    default:
+      return labels.map(l => l.slice(11, 16));
   }
 }
 
@@ -647,16 +780,27 @@ function renderStatusTypesChart(sites) {
   });
 }
 
-// ── System-wide uptime trend ──────────────────────────────────────────────
-function renderSystemUptimeChart(data) {
+// ── System-wide uptime trend with flexible time filtering ──────────────────
+async function renderSystemUptimeChart() {
   const ctx = document.getElementById('chart-uptime');
-  if (!ctx || !data.length) return;
+  if (!ctx) return;
+
+  const timeParams = getTimeFilterParams();
+  const queryParams = new URLSearchParams({
+    action: 'system_uptime_flexible',
+    start_date: timeParams.startDate,
+    end_date: timeParams.endDate,
+    granularity: timeParams.granularity
+  });
+
+  const data = await apiFetch(queryParams.toString());
+  if (!data.length) return;
 
   destroyChart('uptime');
   charts['uptime'] = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: data.map(d => d.date),
+      labels: formatLabels(data.map(d => d.period), timeParams.granularity),
       datasets: [{
         label: 'System Uptime %',
         data: data.map(d => d.uptime_percentage),

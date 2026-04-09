@@ -2,6 +2,66 @@
    dashboard.css - Site24x7-inspired monitoring dashboard
    ============================================================================= */
 
+/* Time Filter Controls */
+.time-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.time-filter-controls select {
+  min-width: 140px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.time-filter-controls select:hover {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.1);
+}
+
+.time-filter-controls select:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+#custom-range {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+#custom-range input[type="date"] {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+
+#custom-range input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.5);
+  cursor: pointer;
+}
+
+#custom-range span {
+  color: var(--muted);
+  font-size: 12px;
+  user-select: none;
+}
+
 :root {
   --bg:        #080c18;
   --surface:   #0f1424;

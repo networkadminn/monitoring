@@ -112,6 +112,39 @@ try {
             jsonOk($data);
             break;
 
+        // Flexible response time trend with custom time range
+        case 'response_trend_flexible':
+            $siteIds = array_map('intval', explode(',', $_GET['ids'] ?? ''));
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? null;
+            $granularity = $_GET['granularity'] ?? 'hour';
+            
+            $data = [];
+            foreach ($siteIds as $id) {
+                if ($id > 0) {
+                    $data[$id] = Statistics::getResponseTimeTrendFlexible($id, $startDate, $endDate, $granularity);
+                }
+            }
+            jsonOk($data);
+            break;
+
+        // Flexible system uptime trend
+        case 'system_uptime_flexible':
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? null;
+            $granularity = $_GET['granularity'] ?? 'day';
+            jsonOk(Statistics::getSystemUptimeTrendFlexible($startDate, $endDate, $granularity));
+            break;
+
+        // Flexible uptime for specific site
+        case 'uptime_flexible':
+            $id = (int) ($_GET['id'] ?? 0);
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? null;
+            if (!$id) jsonError('Missing site id', 400);
+            jsonOk(['uptime' => Statistics::getUptimeFlexible($id, $startDate, $endDate)]);
+            break;
+
         // SSL expiry bar chart data
         case 'ssl_expiry':
             jsonOk(Statistics::getSSLExpiryInfo());
@@ -170,7 +203,7 @@ try {
         // Test connection before saving
         case 'test_connection':
             if ($method !== 'POST') jsonError('POST required', 405);
-            if (!checkRateLimit('test_connection', 30)) {
+            if (!checkSessionRateLimit('test_connection', 30)) {
                 jsonError('Rate limit exceeded for connection tests (30 per minute)', 429);
             }
             $data = json_decode(file_get_contents('php://input'), true);
@@ -181,7 +214,7 @@ try {
         // Immediate check for an existing site
         case 'check_site':
             if ($method !== 'POST') jsonError('POST required', 405);
-            if (!checkRateLimit('check_site', 20)) {
+            if (!checkSessionRateLimit('check_site', 20)) {
                 jsonError('Rate limit exceeded for immediate checks (20 per minute)', 429);
             }
             $payload = json_decode(file_get_contents('php://input'), true);
@@ -359,7 +392,7 @@ try {
         // Run cron manually
         case 'run_cron':
             if ($method !== 'POST') jsonError('POST required', 405);
-            if (!checkRateLimit('run_cron', 5)) {
+            if (!checkSessionRateLimit('run_cron', 5)) {
                 jsonError('Rate limit exceeded for manual cron (5 per minute)', 429);
             }
             $output = [];
@@ -373,7 +406,7 @@ try {
         // Test email alert notification
         case 'test_email':
             if ($method !== 'POST') jsonError('POST required', 405);
-            if (!checkRateLimit('test_email', 10)) {
+            if (!checkSessionRateLimit('test_email', 10)) {
                 jsonError('Rate limit exceeded for test emails (10 per minute)', 429);
             }
             
@@ -409,7 +442,7 @@ try {
             // Create a test site object
             $testSite = [
                 'id' => 0,
-                'name' => 'Test Monitor - ' . ucfirst(str_replace('_', ' ', $alertType)),
+                'name' => 'Test Monitor - ' . htmlspecialchars(ucfirst(str_replace('_', ' ', $alertType))),
                 'url' => APP_URL,
                 'check_type' => $alertType === 'ssl_expiry' ? 'ssl' : 'http',
                 'alert_email' => FROM_EMAIL

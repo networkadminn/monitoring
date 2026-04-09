@@ -39,6 +39,128 @@ class Statistics {
     }
 
     // -------------------------------------------------------------------------
+    // Flexible response time trend with custom date range
+    // -------------------------------------------------------------------------
+    public static function getResponseTimeTrendFlexible(int $siteId, string $startDate = null, string $endDate = null, string $granularity = 'hour'): array {
+        $whereClause = 'WHERE site_id = ?';
+        $params = [$siteId];
+        
+        if ($startDate) {
+            $whereClause .= ' AND created_at >= ?';
+            $params[] = $startDate;
+        }
+        if ($endDate) {
+            $whereClause .= ' AND created_at <= ?';
+            $params[] = $endDate;
+        }
+        
+        switch ($granularity) {
+            case 'minute':
+                $dateFormat = '%Y-%m-%d %H:%i:00';
+                break;
+            case 'hour':
+                $dateFormat = '%Y-%m-%d %H:00:00';
+                break;
+            case 'day':
+                $dateFormat = '%Y-%m-%d';
+                break;
+            case 'week':
+                $dateFormat = '%Y-%u';
+                break;
+            case 'month':
+                $dateFormat = '%Y-%m';
+                break;
+            default:
+                $dateFormat = '%Y-%m-%d %H:00:00';
+        }
+        
+        return Database::fetchAll(
+            "SELECT DATE_FORMAT(created_at, \"$dateFormat\") AS period,
+                    ROUND(AVG(response_time), 2) AS avg_rt,
+                    MIN(response_time) AS min_rt,
+                    MAX(response_time) AS max_rt,
+                    COUNT(*) AS checks,
+                    SUM(status = 'up') AS up_count,
+                    ROUND(SUM(status = 'up') / COUNT(*) * 100, 2) AS uptime_pct
+             FROM logs
+             $whereClause
+             GROUP BY period
+             ORDER BY period ASC",
+            $params
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Flexible system uptime trend with custom date range
+    // -------------------------------------------------------------------------
+    public static function getSystemUptimeTrendFlexible(string $startDate = null, string $endDate = null, string $granularity = 'day'): array {
+        $whereClause = 'WHERE 1=1';
+        $params = [];
+        
+        if ($startDate) {
+            $whereClause .= ' AND date >= ?';
+            $params[] = $startDate;
+        }
+        if ($endDate) {
+            $whereClause .= ' AND date <= ?';
+            $params[] = $endDate;
+        }
+        
+        switch ($granularity) {
+            case 'day':
+                $dateFormat = 'date';
+                break;
+            case 'week':
+                $dateFormat = 'YEARWEEK(date)';
+                break;
+            case 'month':
+                $dateFormat = 'DATE_FORMAT(date, "%Y-%m")';
+                break;
+            default:
+                $dateFormat = 'date';
+        }
+        
+        return Database::fetchAll(
+            "SELECT $dateFormat AS period,
+                    ROUND(AVG(uptime_percentage), 2) AS uptime_percentage,
+                    COUNT(*) AS site_count
+             FROM daily_uptime
+             $whereClause
+             GROUP BY period
+             ORDER BY period ASC",
+            $params
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Get uptime percentage with flexible time range
+    // -------------------------------------------------------------------------
+    public static function getUptimeFlexible(int $siteId, string $startDate = null, string $endDate = null): float {
+        $whereClause = 'WHERE site_id = ?';
+        $params = [$siteId];
+        
+        if ($startDate) {
+            $whereClause .= ' AND created_at >= ?';
+            $params[] = $startDate;
+        }
+        if ($endDate) {
+            $whereClause .= ' AND created_at <= ?';
+            $params[] = $endDate;
+        }
+        
+        $row = Database::fetchOne(
+            "SELECT COUNT(*) AS total,
+                    SUM(status = 'up') AS up_count
+             FROM logs
+             $whereClause",
+            $params
+        );
+        
+        if (!$row || $row['total'] == 0) return 100.0;
+        return round(($row['up_count'] / $row['total']) * 100, 2);
+    }
+
+    // -------------------------------------------------------------------------
     // Daily uptime stats for last N days
     // -------------------------------------------------------------------------
     public static function getDailyUptime(int $siteId, int $days = 30): array {
