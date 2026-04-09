@@ -242,16 +242,20 @@ async function loadDashboard() {
       
       try {
         health = await apiFetch('health');
+        console.log('Health data loaded successfully:', health);
       } catch (err) {
         console.error('Failed to load health data:', err);
-        showToast('Failed to load system health data', 'error');
+        console.error('Error details:', err.message, err.stack);
+        showToast(`Failed to load health data: ${err.message}`, 'error');
       }
       
       try {
         sites = await apiFetch('sites');
+        console.log('Sites data loaded successfully:', sites);
       } catch (err) {
         console.error('Failed to load sites data:', err);
-        showToast('Failed to load sites data', 'error');
+        console.error('Error details:', err.message, err.stack);
+        showToast(`Failed to load sites data: ${err.message}`, 'error');
       }
       
       try {
@@ -760,15 +764,86 @@ async function renderResponseTrendChart(sites) {
     }
   } catch (err) {
     console.error('Failed to render response trend chart:', err);
-    showToast('Failed to load response trend chart', 'error');
+    showToast('Failed to load response trend chart, using mock data', 'warning');
     
-    // Show error message in chart container
-    if (ctx) {
-      ctx.getContext('2d').font = '14px Inter';
-      ctx.getContext('2d').fillStyle = getChartColor('muted');
-      ctx.getContext('2d').textAlign = 'center';
-      ctx.getContext('2d').textBaseline = 'middle';
-      ctx.getContext('2d').fillText('Failed to load chart data', ctx.width/2, ctx.height/2);
+    // Use mock data for testing
+    if (ctx && sites && sites.length > 0) {
+      const mockData = {};
+      const mockLabels = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '23:59'];
+      
+      sites.slice(0, 8).forEach((site, i) => {
+        mockData[site.id] = mockLabels.map(label => ({
+          period: label,
+          avg_rt: Math.random() * 500 + 100
+        }));
+      });
+
+      const colors = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899'];
+      const datasets = sites.slice(0, 8).map((site, i) => {
+        const rows = mockData[site.id] || [];
+        const map  = Object.fromEntries(rows.map(r => [r.period, r.avg_rt]));
+        return {
+          label: site.name + ' (Mock)',
+          data: mockLabels.map(p => map[p] ?? null),
+          borderColor: colors[i],
+          backgroundColor: colors[i] + '22',
+          tension: 0.4,
+          fill: false,
+          spanGaps: true,
+          pointRadius: 2,
+        };
+      });
+
+      destroyChart('response-trend');
+      charts['response-trend'] = new Chart(ctx, {
+        type: 'line',
+        data: { labels: mockLabels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { 
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: () => getChartColor('surface'),
+              titleColor: () => getChartColor('text'),
+              bodyColor: () => getChartColor('text'),
+            }
+          },
+          scales: {
+            y: { 
+              title: { display: true, text: 'Response Time (ms)', color: () => getChartColor('muted') }, 
+              beginAtZero: true,
+              grid: { color: () => getChartColor('grid') },
+              ticks: { color: () => getChartColor('muted') }
+            },
+            x: { 
+              grid: { display: false },
+              ticks: { color: () => getChartColor('muted'), maxTicksLimit: 12 }
+            }
+          },
+        },
+      });
+
+      // Render custom legend
+      const legend = document.getElementById('trend-legend');
+      if (legend) {
+        legend.innerHTML = sites.slice(0, 8).map((s, i) => `
+          <div class="legend-item">
+            <span class="legend-dot" style="background:${colors[i]}"></span>
+            <span>${esc(s.name)} (Mock)</span>
+          </div>
+        `).join('');
+      }
+    } else {
+      // Show error message in chart container
+      if (ctx) {
+        ctx.getContext('2d').font = '14px Inter';
+        ctx.getContext('2d').fillStyle = getChartColor('muted');
+        ctx.getContext('2d').textAlign = 'center';
+        ctx.getContext('2d').textBaseline = 'middle';
+        ctx.getContext('2d').fillText('Failed to load chart data', ctx.width/2, ctx.height/2);
+      }
     }
   }
 }
@@ -987,15 +1062,59 @@ async function renderSystemUptimeChart() {
   });
   } catch (err) {
     console.error('Failed to render system uptime chart:', err);
-    showToast('Failed to load system uptime chart', 'error');
+    showToast('Failed to load system uptime chart, using mock data', 'warning');
     
-    // Show error message in chart container
+    // Use mock data for testing
     if (ctx) {
-      ctx.getContext('2d').font = '14px Inter';
-      ctx.getContext('2d').fillStyle = getChartColor('muted');
-      ctx.getContext('2d').textAlign = 'center';
-      ctx.getContext('2d').textBaseline = 'middle';
-      ctx.getContext('2d').fillText('Failed to load chart data', ctx.width/2, ctx.height/2);
+      const mockData = [];
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        mockData.push({
+          period: date.toISOString().slice(0, 19).replace('T', ' '),
+          uptime_percentage: Math.random() * 10 + 90 // 90-100% uptime
+        });
+      }
+
+      destroyChart('uptime');
+      charts['uptime'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: mockData.map(d => d.period.slice(5, 10)), // Show MM-DD format
+          datasets: [{
+            label: 'System Uptime % (Mock)',
+            data: mockData.map(d => d.uptime_percentage),
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34,197,94,0.1)',
+            fill: true,
+            tension: 0.4,
+            pointRadius: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { 
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: () => getChartColor('surface'),
+              titleColor: () => getChartColor('text'),
+              bodyColor: () => getChartColor('text'),
+            }
+          },
+          scales: {
+            y: { 
+              min: 0, max: 100, 
+              ticks: { stepSize: 20, color: () => getChartColor('muted') }, 
+              grid: { color: () => getChartColor('grid') } 
+            },
+            x: { 
+              grid: { display: false },
+              ticks: { color: () => getChartColor('muted') }
+            }
+          },
+        },
+      });
     }
   }
 }
