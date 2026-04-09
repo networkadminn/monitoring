@@ -97,9 +97,55 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
         <div class="last-updated" id="last-updated"></div>
       </div>
       <div class="topbar-center">
-        <div class="search-wrap">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="site-search" placeholder="Search monitors..." autocomplete="off">
+        <div class="filter-controls">
+          <!-- Search -->
+          <div class="search-wrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="site-search" placeholder="Search monitors..." autocomplete="off">
+          </div>
+          
+          <!-- Status Filter -->
+          <select id="status-filter" class="btn btn-ghost btn-sm" style="margin-left:8px">
+            <option value="">All Status</option>
+            <option value="up">Up Only</option>
+            <option value="down">Down Only</option>
+            <option value="warning">Warning</option>
+            <option value="checking">Checking</option>
+          </select>
+          
+          <!-- Type Filter -->
+          <select id="type-filter" class="btn btn-ghost btn-sm" style="margin-left:8px">
+            <option value="">All Types</option>
+            <option value="http">HTTP/HTTPS</option>
+            <option value="ssl">SSL Certificate</option>
+            <option value="port">Port Check</option>
+            <option value="keyword">Keyword Check</option>
+            <option value="ping">Ping</option>
+          </select>
+          
+          <!-- Response Time Filter -->
+          <select id="response-filter" class="btn btn-ghost btn-sm" style="margin-left:8px">
+            <option value="">All Response Times</option>
+            <option value="fast">Fast (&lt;200ms)</option>
+            <option value="medium">Medium (200-500ms)</option>
+            <option value="slow">Slow (&gt;500ms)</option>
+          </select>
+          
+          <!-- Tag Filter -->
+          <select id="tag-filter" class="btn btn-ghost btn-sm" style="margin-left:8px">
+            <option value="">All Tags</option>
+            <option value="critical">Critical</option>
+            <option value="production">Production</option>
+            <option value="staging">Staging</option>
+            <option value="development">Development</option>
+            <option value="external">External</option>
+            <option value="internal">Internal</option>
+          </select>
+          
+          <!-- Clear Filters -->
+          <button id="clear-filters" class="btn btn-ghost btn-sm" style="margin-left:8px" title="Clear all filters">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
       </div>
       <div class="topbar-actions">
@@ -178,6 +224,117 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
       console.log('DOMContentLoaded in sites.php');
       if (document.getElementById('sites-table')) {
         console.log('sites-table element found');
+        
+        // Advanced filtering functionality
+        const statusFilter = document.getElementById('status-filter');
+        const typeFilter = document.getElementById('type-filter');
+        const responseFilter = document.getElementById('response-filter');
+        const tagFilter = document.getElementById('tag-filter');
+        const clearFilters = document.getElementById('clear-filters');
+        const siteSearch = document.getElementById('site-search');
+        
+        // Apply filters to DataTable
+        function applyFilters() {
+          const table = $('#sites-table').DataTable();
+          
+          // Status filter
+          if (statusFilter && statusFilter.value) {
+            table.column(3).search(statusFilter.value === 'up' ? '^up$' : 
+                                              statusFilter.value === 'down' ? '^down$' : 
+                                              statusFilter.value === 'warning' ? '^warning$' : 
+                                              statusFilter.value === 'checking' ? '^checking$' : '', true, false).draw();
+          }
+          
+          // Type filter
+          if (typeFilter && typeFilter.value) {
+            table.column(2).search(typeFilter.value, true, false).draw();
+          }
+          
+          // Response time filter
+          if (responseFilter && responseFilter.value) {
+            const searchTerms = {
+              'fast': '^[0-9]{1,3}$',
+              'medium': '^[2-9][0-9]{2}$|^[1-4][0-9]{3}$|500',
+              'slow': '^[5-9][0-9]{2}$|^[1-9][0-9]{3,}$'
+            };
+            table.column(4).search(searchTerms[responseFilter.value] || '', true, false).draw();
+          }
+          
+          // Tag filter
+          if (tagFilter && tagFilter.value) {
+            table.column(8).search(tagFilter.value, true, false).draw();
+          }
+        }
+        
+        // Add event listeners
+        if (statusFilter) {
+          statusFilter.addEventListener('change', applyFilters);
+        }
+        
+        if (typeFilter) {
+          typeFilter.addEventListener('change', applyFilters);
+        }
+        
+        if (responseFilter) {
+          responseFilter.addEventListener('change', applyFilters);
+        }
+        
+        if (tagFilter) {
+          tagFilter.addEventListener('change', applyFilters);
+        }
+        
+        if (clearFilters) {
+          clearFilters.addEventListener('click', () => {
+            if (statusFilter) statusFilter.value = '';
+            if (typeFilter) typeFilter.value = '';
+            if (responseFilter) responseFilter.value = '';
+            if (tagFilter) tagFilter.value = '';
+            if (siteSearch) siteSearch.value = '';
+            
+            const table = $('#sites-table').DataTable();
+            table.search('').columns().search('').draw();
+            
+            showToast('Filters cleared', 'success');
+          });
+        }
+        
+        // Enhanced search with debouncing
+        if (siteSearch) {
+          let searchTimeout;
+          siteSearch.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+              const table = $('#sites-table').DataTable();
+              table.search(e.target.value).draw();
+            }, 300);
+          });
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+          // Ctrl/Cmd + F to focus search
+          if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            siteSearch?.focus();
+          }
+          
+          // Escape to clear filters
+          if (e.key === 'Escape') {
+            clearFilters?.click();
+          }
+        });
+        
+        // Filter indicators in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('status')) {
+          statusFilter.value = urlParams.get('status');
+          applyFilters();
+        }
+        if (urlParams.get('type')) {
+          typeFilter.value = urlParams.get('type');
+          applyFilters();
+        }
+        
       } else {
         console.warn('sites-table element NOT found!');
       }

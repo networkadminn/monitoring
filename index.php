@@ -112,20 +112,52 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
         <div class="last-updated" id="last-updated"></div>
       </div>
       <div class="topbar-center">
-        <div class="search-wrap">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="site-search" placeholder="Search monitors..." autocomplete="off">
+        <div class="filter-controls">
+          <!-- Search -->
+          <div class="search-wrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="site-search" placeholder="Search monitors..." autocomplete="off">
+          </div>
+          
+          <!-- Status Filter for Dashboard -->
+          <select id="dashboard-status-filter" class="btn btn-ghost btn-sm" style="margin-left:8px">
+            <option value="">All Sites</option>
+            <option value="up">Up Only</option>
+            <option value="down">Down Only</option>
+            <option value="warning">Warning</option>
+            <option value="checking">Checking</option>
+          </select>
+          
+          <!-- Chart Type Filter -->
+          <select id="chart-type-filter" class="btn btn-ghost btn-sm" style="margin-left:8px">
+            <option value="">All Charts</option>
+            <option value="response">Response Trends</option>
+            <option value="uptime">System Uptime</option>
+            <option value="ssl">SSL Status</option>
+            <option value="histogram">Response Distribution</option>
+            <option value="status">Status Types</option>
+          </select>
         </div>
       </div>
       <div class="topbar-actions">
         <div class="time-filter-controls">
           <select id="time-range" class="btn btn-ghost btn-sm" style="margin-right:8px">
+            <option value="15m">Last 15 Minutes</option>
+            <option value="30m">Last 30 Minutes</option>
             <option value="1h">Last Hour</option>
+            <option value="3h">Last 3 Hours</option>
             <option value="6h">Last 6 Hours</option>
+            <option value="12h">Last 12 Hours</option>
             <option value="24h" selected>Last 24 Hours</option>
+            <option value="2d">Last 2 Days</option>
+            <option value="3d">Last 3 Days</option>
             <option value="7d">Last 7 Days</option>
+            <option value="14d">Last 14 Days</option>
             <option value="30d">Last 30 Days</option>
+            <option value="60d">Last 60 Days</option>
             <option value="90d">Last 90 Days</option>
+            <option value="180d">Last 6 Months</option>
+            <option value="365d">Last Year</option>
             <option value="custom">Custom Range</option>
           </select>
           <div id="custom-range" style="display:none; margin-right:8px">
@@ -307,6 +339,25 @@ $userInitial = strtoupper(substr($_SESSION['user'] ?? 'A', 0, 1));
       <div class="table-panel">
         <div class="table-panel-header">
           <div class="table-panel-title">Recent Incidents</div>
+          <div class="incident-filters" style="display:flex;gap:8px;align-items:center;">
+            <select id="incident-status-filter" class="btn btn-ghost btn-sm">
+              <option value="">All Status</option>
+              <option value="ongoing">Ongoing Only</option>
+              <option value="resolved">Resolved Only</option>
+              <option value="last24h">Last 24 Hours</option>
+              <option value="last7d">Last 7 Days</option>
+            </select>
+            <select id="incident-severity-filter" class="btn btn-ghost btn-sm">
+              <option value="">All Severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <button id="clear-incident-filters" class="btn btn-ghost btn-sm" title="Clear incident filters">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
         </div>
         <div class="table-wrap">
           <table id="incidents-table">

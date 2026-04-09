@@ -82,8 +82,23 @@ function getTimeRangeParams(range) {
   let startDate, endDate, granularity;
   
   switch (range) {
+    case '15m':
+      startDate = new Date(now.getTime() - 15 * 60 * 1000);
+      endDate = now;
+      granularity = 'minute';
+      break;
+    case '30m':
+      startDate = new Date(now.getTime() - 30 * 60 * 1000);
+      endDate = now;
+      granularity = 'minute';
+      break;
     case '1h':
       startDate = new Date(now.getTime() - 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'minute';
+      break;
+    case '3h':
+      startDate = new Date(now.getTime() - 3 * 60 * 60 * 1000);
       endDate = now;
       granularity = 'minute';
       break;
@@ -92,13 +107,33 @@ function getTimeRangeParams(range) {
       endDate = now;
       granularity = 'hour';
       break;
+    case '12h':
+      startDate = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'hour';
+      break;
     case '24h':
       startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       endDate = now;
       granularity = 'hour';
       break;
+    case '2d':
+      startDate = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'hour';
+      break;
+    case '3d':
+      startDate = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'day';
+      break;
     case '7d':
       startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'day';
+      break;
+    case '14d':
+      startDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
       endDate = now;
       granularity = 'day';
       break;
@@ -107,10 +142,25 @@ function getTimeRangeParams(range) {
       endDate = now;
       granularity = 'day';
       break;
+    case '60d':
+      startDate = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'day';
+      break;
     case '90d':
       startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
       endDate = now;
       granularity = 'week';
+      break;
+    case '180d':
+      startDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'week';
+      break;
+    case '365d':
+      startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+      endDate = now;
+      granularity = 'month';
       break;
     default:
       startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -140,6 +190,162 @@ document.addEventListener('DOMContentLoaded', () => {
   initializeChartDefaults();
   initTheme();
   initCheckboxDelegation();
+
+  // Dashboard filtering functionality
+  const dashboardStatusFilter = document.getElementById('dashboard-status-filter');
+  const chartTypeFilter = document.getElementById('chart-type-filter');
+  
+  // Apply dashboard filters
+  function applyDashboardFilters() {
+    // Filter sites data based on status
+    if (dashboardStatusFilter && dashboardStatusFilter.value && sitesData.length > 0) {
+      const filteredSites = sitesData.filter(site => {
+        if (dashboardStatusFilter.value === 'up') return site.status === 'up';
+        if (dashboardStatusFilter.value === 'down') return site.status === 'down';
+        if (dashboardStatusFilter.value === 'warning') return site.status === 'warning';
+        if (dashboardStatusFilter.value === 'checking') return site.status === 'checking';
+        return true; // All sites
+      });
+      
+      // Update dashboard cards with filtered data
+      updateDashboardCards(filteredSites);
+      
+      // Update charts with filtered sites
+      if (chartTypeFilter && chartTypeFilter.value) {
+        updateChartsVisibility(chartTypeFilter.value);
+      }
+    }
+    
+    // Show/hide charts based on filter
+    if (chartTypeFilter && chartTypeFilter.value) {
+      updateChartsVisibility(chartTypeFilter.value);
+    }
+  }
+  
+  // Update chart visibility
+  function updateChartsVisibility(chartType) {
+    const chartContainers = {
+      'response': document.querySelector('.charts-grid'),
+      'uptime': document.querySelector('[id="chart-uptime"]')?.closest('.chart-panel'),
+      'ssl': document.querySelector('[id="chart-ssl"]')?.closest('.chart-panel'),
+      'histogram': document.querySelector('[id="chart-histogram"]')?.closest('.chart-panel'),
+      'status': document.querySelector('[id="chart-status-types"]')?.closest('.chart-panel')
+    };
+    
+    // Hide all charts first
+    Object.values(chartContainers).forEach(container => {
+      if (container) container.style.display = 'none';
+    });
+    
+    // Show selected chart type
+    if (chartContainers[chartType]) {
+      chartContainers[chartType].style.display = 'block';
+    }
+    
+    // If "All Charts" selected, show all
+    if (!chartType) {
+      Object.values(chartContainers).forEach(container => {
+        if (container) container.style.display = 'block';
+      });
+    }
+  }
+  
+  // Update dashboard cards with filtered data
+  function updateDashboardCards(filteredSites) {
+    const upCount = filteredSites.filter(s => s.status === 'up').length;
+    const downCount = filteredSites.filter(s => s.status === 'down').length;
+    const avgResponse = filteredSites
+      .filter(s => s.response_time)
+      .reduce((sum, s) => sum + s.response_time, 0) / filteredSites.filter(s => s.response_time).length;
+    const healthScore = Math.round((upCount / filteredSites.length) * 100);
+    
+    // Update card values
+    const totalCard = document.getElementById('card-total');
+    const upCard = document.getElementById('card-up');
+    const downCard = document.getElementById('card-down');
+    const avgCard = document.getElementById('card-avgrt');
+    const healthCard = document.getElementById('card-health');
+    
+    if (totalCard) totalCard.textContent = filteredSites.length;
+    if (upCard) upCard.textContent = upCount;
+    if (downCard) downCard.textContent = downCount;
+    if (avgCard) avgCard.textContent = Math.round(avgResponse) + ' ms';
+    if (healthCard) healthCard.textContent = healthScore + '%';
+  }
+  
+  // Add event listeners for dashboard filters
+  if (dashboardStatusFilter) {
+    dashboardStatusFilter.addEventListener('change', applyDashboardFilters);
+  }
+  
+  if (chartTypeFilter) {
+    chartTypeFilter.addEventListener('change', applyDashboardFilters);
+  }
+
+  // Incident filtering functionality
+  const incidentStatusFilter = document.getElementById('incident-status-filter');
+  const incidentSeverityFilter = document.getElementById('incident-severity-filter');
+  const clearIncidentFilters = document.getElementById('clear-incident-filters');
+  
+  // Apply incident filters to DataTable
+  function applyIncidentFilters() {
+    if (document.getElementById('incidents-table')) {
+      const table = $('#incidents-table').DataTable();
+      
+      // Status filter
+      if (incidentStatusFilter && incidentStatusFilter.value) {
+        const now = new Date();
+        let dateFilter = '';
+        
+        if (incidentStatusFilter.value === 'last24h') {
+          dateFilter = now.toISOString().slice(0, 10);
+        } else if (incidentStatusFilter.value === 'last7d') {
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          dateFilter = weekAgo.toISOString().slice(0, 10);
+        }
+        
+        if (incidentStatusFilter.value === 'ongoing') {
+          table.column(2).search('Ongoing', true, false).draw();
+        } else if (incidentStatusFilter.value === 'resolved') {
+          table.column(2).search('^(?!.*Ongoing).*$', true, false).draw();
+        } else if (dateFilter) {
+          table.column(1).search(dateFilter, true, false).draw();
+        }
+      }
+      
+      // Severity filter
+      if (incidentSeverityFilter && incidentSeverityFilter.value) {
+        const severityTerms = {
+          'critical': '(critical|down|offline)',
+          'high': '(high|error|failed)',
+          'medium': '(medium|warning)',
+          'low': '(low|info|notice)'
+        };
+        table.column(4).search(severityTerms[incidentSeverityFilter.value] || '', true, false).draw();
+      }
+    }
+  }
+  
+  // Add event listeners for incident filters
+  if (incidentStatusFilter) {
+    incidentStatusFilter.addEventListener('change', applyIncidentFilters);
+  }
+  
+  if (incidentSeverityFilter) {
+    incidentSeverityFilter.addEventListener('change', applyIncidentFilters);
+  }
+  
+  if (clearIncidentFilters) {
+    clearIncidentFilters.addEventListener('click', () => {
+      if (incidentStatusFilter) incidentStatusFilter.value = '';
+      if (incidentSeverityFilter) incidentSeverityFilter.value = '';
+      
+      const table = $('#incidents-table').DataTable();
+      table.search('').columns().search('').draw();
+      
+      showToast('Incident filters cleared', 'success');
+    });
+  }
 
   // Load dashboard data if either dashboard or sites table is present
   if (document.getElementById('chart-status-types') || document.getElementById('sites-table')) {
