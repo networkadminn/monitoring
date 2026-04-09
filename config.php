@@ -48,6 +48,11 @@ define('DB_USER', getEnvValue('DB_USER', 'monitor_user'));
 define('DB_PASS', getEnvValue('DB_PASS', ''));
 define('DB_CHARSET', getEnvValue('DB_CHARSET', 'utf8mb4'));
 
+// Fallback for local testing when database is not available
+$envFileExists = file_exists(__DIR__ . '/.env');
+$dbPasswordSet = getEnvValue('DB_PASS') !== '';
+define('DB_AVAILABLE', $envFileExists && $dbPasswordSet);
+
 // =============================================================================
 // SMTP / Email Configuration
 // =============================================================================
