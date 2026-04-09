@@ -40,6 +40,13 @@ function getTimeFilterParams() {
     const startDate = document.getElementById('start-date')?.value;
     const endDate = document.getElementById('end-date')?.value;
     if (startDate && endDate) {
+      // Validate date range
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (start > end) {
+        console.warn('Start date cannot be after end date, swapping');
+        [startDate, endDate] = [endDate, startDate];
+      }
       return {
         startDate: startDate + ' 00:00:00',
         endDate: endDate + ' 23:59:59',
@@ -589,15 +596,9 @@ async function renderResponseTrendChart(sites) {
   if (!ids) return;
 
   const timeParams = getTimeFilterParams();
-  const queryParams = new URLSearchParams({
-    action: 'response_trend_flexible',
-    ids: ids,
-    start_date: timeParams.startDate,
-    end_date: timeParams.endDate,
-    granularity: timeParams.granularity
-  });
+  const queryParams = `response_trend_flexible&ids=${encodeURIComponent(ids)}&start_date=${encodeURIComponent(timeParams.startDate)}&end_date=${encodeURIComponent(timeParams.endDate)}&granularity=${encodeURIComponent(timeParams.granularity)}`;
 
-  const data = await apiFetch(queryParams.toString());
+  const data = await apiFetch(queryParams);
   const ctx  = document.getElementById('chart-response-trend');
   if (!ctx) return;
 
@@ -786,14 +787,9 @@ async function renderSystemUptimeChart() {
   if (!ctx) return;
 
   const timeParams = getTimeFilterParams();
-  const queryParams = new URLSearchParams({
-    action: 'system_uptime_flexible',
-    start_date: timeParams.startDate,
-    end_date: timeParams.endDate,
-    granularity: timeParams.granularity
-  });
+  const queryParams = `system_uptime_flexible&start_date=${encodeURIComponent(timeParams.startDate)}&end_date=${encodeURIComponent(timeParams.endDate)}&granularity=${encodeURIComponent(timeParams.granularity)}`;
 
-  const data = await apiFetch(queryParams.toString());
+  const data = await apiFetch(queryParams);
   if (!data.length) return;
 
   destroyChart('uptime');
