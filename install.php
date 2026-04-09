@@ -6,6 +6,65 @@
 define('MONITOR_ROOT', __DIR__);
 require_once MONITOR_ROOT . '/config.php';
 
+// Security: Only allow installation in specific conditions
+$allowed_install = false;
+
+// Check if this is a CLI installation
+$is_cli = (php_sapi_name() === 'cli');
+if ($is_cli) {
+    $allowed_install = true;
+} else {
+    // Get client IP with proper headers
+    $client_ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? 
+                 $_SERVER['HTTP_X_REAL_IP'] ?? 
+                 $_SERVER['REMOTE_ADDR'] ?? '';
+    
+    // Clean IP (remove port if present)
+    $client_ip = explode(',', $client_ip)[0];
+    $client_ip = trim($client_ip);
+    
+    // Check for localhost/private IPs
+    $is_local = in_array($client_ip, ['127.0.0.1', '::1', 'localhost']) ||
+                 (strpos($client_ip, '192.168.') === 0) ||
+                 (strpos($client_ip, '10.') === 0) ||
+                 (strpos($client_ip, '172.') === 0 && substr($client_ip, 0, 6) >= '172.16' && substr($client_ip, 0, 6) <= '172.31');
+    
+    // Check for installation token or specific environment
+    $install_token = $_GET['install_token'] ?? $_POST['install_token'] ?? '';
+    $is_dev = (defined('ENVIRONMENT') && ENVIRONMENT === 'development');
+    
+    // Production domain check - block if accessing from production domain
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    $is_production_domain = (
+        strpos($host, 'euclideesolutions.com') !== false ||
+        strpos($host, 'monitoring.') !== false
+    );
+    
+    // Allow if: CLI, localhost/private IP, dev environment, or valid token
+    // But NEVER allow from production domain via web
+    if ($is_local || ($is_dev && !$is_production_domain) || 
+        ($install_token && defined('INSTALL_TOKEN') && hash_equals(INSTALL_TOKEN, $install_token))) {
+        $allowed_install = true;
+    }
+}
+
+if (!$allowed_install) {
+    header('HTTP/1.0 403 Forbidden');
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!DOCTYPE html><html><head><title>Access Denied</title></head><body>';
+    echo '<h1>403 - Installation Access Denied</h1>';
+    echo '<p>This installer is disabled for security reasons on production systems.</p>';
+    echo '<p>To enable installation, you must:</p>';
+    echo '<ul>';
+    echo '<li>Run from command line: <code>php install.php</code></li>';
+    echo '<li>Or access from localhost during development</li>';
+    echo '<li>Or provide a valid installation token</li>';
+    echo '</ul>';
+    echo '<p><strong>Note:</strong> Installation is blocked when accessed from production domains.</p>';
+    echo '</body></html>';
+    exit;
+}
+
 $errors   = [];
 $messages = [];
 $done     = false;

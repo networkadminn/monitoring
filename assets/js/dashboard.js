@@ -37,16 +37,31 @@ function getTimeFilterParams() {
   const customRange = document.getElementById('custom-range');
   
   if (timeRange === 'custom' && customRange.style.display !== 'none') {
-    const startDate = document.getElementById('start-date')?.value;
-    const endDate = document.getElementById('end-date')?.value;
+    const startDateEl = document.getElementById('start-date');
+    const endDateEl = document.getElementById('end-date');
+    let startDate = startDateEl?.value;
+    let endDate = endDateEl?.value;
+    
     if (startDate && endDate) {
-      // Validate date range
+      // Validate date format first
       const start = new Date(startDate);
       const end = new Date(endDate);
+      
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        showToast('Invalid date format. Please use YYYY-MM-DD format.', 'error');
+        return getTimeRangeParams('24h'); // Fallback to default
+      }
+      
+      // Validate date range and swap if needed
       if (start > end) {
         console.warn('Start date cannot be after end date, swapping');
+        showToast('Start date was after end date. Dates have been swapped.', 'warning');
+        
+        // Update DOM values
+        [startDateEl.value, endDateEl.value] = [endDate, startDate];
         [startDate, endDate] = [endDate, startDate];
       }
+      
       return {
         startDate: startDate + ' 00:00:00',
         endDate: endDate + ' 23:59:59',
@@ -216,25 +231,83 @@ async function loadDashboard() {
 
   try {
     if (isDashboard) {
-      const [health, sites, incidents, ssl, slowest, systemUptime] = await Promise.all([
-        apiFetch('health'),
-        apiFetch('sites'),
-        apiFetch('incidents'),
-        apiFetch('ssl_expiry'),
-        apiFetch('slowest'),
-        apiFetch('system_uptime'),
-      ]);
+      // Load data with individual error handling to prevent one failure from breaking everything
+      let health = null, sites = null, incidents = null, ssl = null, slowest = null, systemUptime = null;
+      
+      try {
+        health = await apiFetch('health');
+      } catch (err) {
+        console.error('Failed to load health data:', err);
+        showToast('Failed to load system health data', 'error');
+      }
+      
+      try {
+        sites = await apiFetch('sites');
+      } catch (err) {
+        console.error('Failed to load sites data:', err);
+        showToast('Failed to load sites data', 'error');
+      }
+      
+      try {
+        incidents = await apiFetch('incidents');
+      } catch (err) {
+        console.error('Failed to load incidents data:', err);
+        showToast('Failed to load incidents data', 'error');
+      }
+      
+      try {
+        ssl = await apiFetch('ssl_expiry');
+      } catch (err) {
+        console.error('Failed to load SSL data:', err);
+        showToast('Failed to load SSL data', 'error');
+      }
+      
+      try {
+        slowest = await apiFetch('slowest');
+      } catch (err) {
+        console.error('Failed to load slowest data:', err);
+        showToast('Failed to load slowest data', 'error');
+      }
+      
+      try {
+        systemUptime = await apiFetch('system_uptime');
+      } catch (err) {
+        console.error('Failed to load system uptime data:', err);
+        showToast('Failed to load system uptime data', 'error');
+      }
 
-      sitesData = sites;
-      renderHealthCards(health);
-      renderIncidentsTable(incidents);
-      renderSSLChart(ssl);
-      renderStatusTypesChart(sites);
-      renderSystemUptimeChart();
-      renderResponseTrendChart(sites);
-      renderHistogramChart(sites);
-      renderGauge(health.health_score);
-      renderSlowestList(slowest);
+      // Only set sitesData if we successfully loaded it
+      if (sites) {
+        sitesData = sites;
+      }
+      
+      // Render each component with its own error handling
+      if (health) {
+        renderHealthCards(health);
+        renderGauge(health.health_score);
+      }
+      
+      if (incidents) {
+        renderIncidentsTable(incidents);
+      }
+      
+      if (ssl) {
+        renderSSLChart(ssl);
+      }
+      
+      if (sites) {
+        renderStatusTypesChart(sites);
+        renderResponseTrendChart(sites);
+        renderHistogramChart(sites);
+      }
+      
+      if (systemUptime) {
+        renderSystemUptimeChart();
+      }
+      
+      if (slowest) {
+        renderSlowestList(slowest);
+      }
     } 
     
     if (isSitesPage) {
@@ -595,74 +668,95 @@ async function renderResponseTrendChart(sites) {
   const ids = sites.slice(0, 8).map(s => s.id).join(',');
   if (!ids) return;
 
-  const timeParams = getTimeFilterParams();
-  const queryParams = `response_trend_flexible&ids=${encodeURIComponent(ids)}&start_date=${encodeURIComponent(timeParams.startDate)}&end_date=${encodeURIComponent(timeParams.endDate)}&granularity=${encodeURIComponent(timeParams.granularity)}`;
-
-  const data = await apiFetch(queryParams);
-  const ctx  = document.getElementById('chart-response-trend');
+  const ctx = document.getElementById('chart-response-trend');
   if (!ctx) return;
 
+  try {
+    const timeParams = getTimeFilterParams();
+    const queryParams = new URLSearchParams({
+      action: 'response_trend_flexible',
+      ids: ids,
+      start_date: timeParams.startDate,
+      end_date: timeParams.endDate,
+      granularity: timeParams.granularity
+    });
+
+    const data = await apiFetch(queryParams.toString());
+
   // Build unified label set
-  const allPeriods = new Set();
-  Object.values(data).forEach(rows => rows.forEach(r => allPeriods.add(r.period)));
-  const labels = [...allPeriods].sort();
+    const allPeriods = new Set();
+    Object.values(data).forEach(rows => rows.forEach(r => allPeriods.add(r.period)));
+    const labels = [...allPeriods].sort();
 
-  const colors = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899'];
-  const datasets = sites.slice(0, 8).map((site, i) => {
-    const rows = data[site.id] || [];
-    const map  = Object.fromEntries(rows.map(r => [r.period, r.avg_rt]));
-    return {
-      label: site.name,
-      data: labels.map(p => map[p] ?? null),
-      borderColor: colors[i],
-      backgroundColor: colors[i] + '22',
-      tension: 0.4,
-      fill: false,
-      spanGaps: true,
-      pointRadius: 2,
-    };
-  });
+    const colors = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899'];
+    const datasets = sites.slice(0, 8).map((site, i) => {
+      const rows = data[site.id] || [];
+      const map  = Object.fromEntries(rows.map(r => [r.period, r.avg_rt]));
+      return {
+        label: site.name,
+        data: labels.map(p => map[p] ?? null),
+        borderColor: colors[i],
+        backgroundColor: colors[i] + '22',
+        tension: 0.4,
+        fill: false,
+        spanGaps: true,
+        pointRadius: 2,
+      };
+    });
 
-  destroyChart('response-trend');
-  charts['response-trend'] = new Chart(ctx, {
-    type: 'line',
-    data: { labels: formatLabels(labels, timeParams.granularity), datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: { 
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: () => getChartColor('surface'),
-          titleColor: () => getChartColor('text'),
-          bodyColor: () => getChartColor('text'),
-        }
-      },
-      scales: {
-        y: { 
-          title: { display: true, text: 'Response Time (ms)', color: () => getChartColor('muted') }, 
-          beginAtZero: true,
-          grid: { color: () => getChartColor('grid') },
-          ticks: { color: () => getChartColor('muted') }
+    destroyChart('response-trend');
+    charts['response-trend'] = new Chart(ctx, {
+      type: 'line',
+      data: { labels: formatLabels(labels, timeParams.granularity), datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { 
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: () => getChartColor('surface'),
+            titleColor: () => getChartColor('text'),
+            bodyColor: () => getChartColor('text'),
+          }
         },
-        x: { 
-          grid: { display: false },
-          ticks: { color: () => getChartColor('muted'), maxTicksLimit: 12 }
-        }
+        scales: {
+          y: { 
+            title: { display: true, text: 'Response Time (ms)', color: () => getChartColor('muted') }, 
+            beginAtZero: true,
+            grid: { color: () => getChartColor('grid') },
+            ticks: { color: () => getChartColor('muted') }
+          },
+          x: { 
+            grid: { display: false },
+            ticks: { color: () => getChartColor('muted'), maxTicksLimit: 12 }
+          }
+        },
       },
-    },
-  });
+    });
 
-  // Render custom legend
-  const legend = document.getElementById('trend-legend');
-  if (legend) {
-    legend.innerHTML = sites.slice(0, 8).map((s, i) => `
-      <div class="legend-item">
-        <span class="legend-dot" style="background:${colors[i]}"></span>
-        <span>${esc(s.name)}</span>
-      </div>
-    `).join('');
+    // Render custom legend
+    const legend = document.getElementById('trend-legend');
+    if (legend) {
+      legend.innerHTML = sites.slice(0, 8).map((s, i) => `
+        <div class="legend-item">
+          <span class="legend-dot" style="background:${colors[i]}"></span>
+          <span>${esc(s.name)}</span>
+        </div>
+      `).join('');
+    }
+  } catch (err) {
+    console.error('Failed to render response trend chart:', err);
+    showToast('Failed to load response trend chart', 'error');
+    
+    // Show error message in chart container
+    if (ctx) {
+      ctx.getContext('2d').font = '14px Inter';
+      ctx.getContext('2d').fillStyle = getChartColor('muted');
+      ctx.getContext('2d').textAlign = 'center';
+      ctx.getContext('2d').textBaseline = 'middle';
+      ctx.getContext('2d').fillText('Failed to load chart data', ctx.width/2, ctx.height/2);
+    }
   }
 }
 
@@ -687,7 +781,17 @@ function formatLabels(labels, granularity) {
 // ── SSL expiry bar chart ──────────────────────────────────────────────────
 function renderSSLChart(sslData) {
   const ctx = document.getElementById('chart-ssl');
-  if (!ctx || !sslData.length) return;
+  if (!ctx) return;
+  
+  if (!sslData || !sslData.length) {
+    // Show empty state message
+    ctx.getContext('2d').font = '14px Inter';
+    ctx.getContext('2d').fillStyle = getChartColor('muted');
+    ctx.getContext('2d').textAlign = 'center';
+    ctx.getContext('2d').textBaseline = 'middle';
+    ctx.getContext('2d').fillText('No SSL data available', ctx.width/2, ctx.height/2);
+    return;
+  }
 
   const labels = sslData.map(s => s.name);
   const values = sslData.map(s => s.ssl_expiry_days ?? 0);
@@ -734,7 +838,17 @@ function renderSSLChart(sslData) {
 // ── Status by type doughnut ───────────────────────────────────────────────
 function renderStatusTypesChart(sites) {
   const ctx = document.getElementById('chart-status-types');
-  if (!ctx || !sites.length) return;
+  if (!ctx) return;
+  
+  if (!sites || !sites.length) {
+    // Show empty state message
+    ctx.getContext('2d').font = '14px Inter';
+    ctx.getContext('2d').fillStyle = getChartColor('muted');
+    ctx.getContext('2d').textAlign = 'center';
+    ctx.getContext('2d').textBaseline = 'middle';
+    ctx.getContext('2d').fillText('No sites data available', ctx.width/2, ctx.height/2);
+    return;
+  }
 
   const counts = {};
   sites.forEach(s => {
@@ -786,11 +900,17 @@ async function renderSystemUptimeChart() {
   const ctx = document.getElementById('chart-uptime');
   if (!ctx) return;
 
-  const timeParams = getTimeFilterParams();
-  const queryParams = `system_uptime_flexible&start_date=${encodeURIComponent(timeParams.startDate)}&end_date=${encodeURIComponent(timeParams.endDate)}&granularity=${encodeURIComponent(timeParams.granularity)}`;
+  try {
+    const timeParams = getTimeFilterParams();
+    const queryParams = new URLSearchParams({
+      action: 'system_uptime_flexible',
+      start_date: timeParams.startDate,
+      end_date: timeParams.endDate,
+      granularity: timeParams.granularity
+    });
 
-  const data = await apiFetch(queryParams);
-  if (!data.length) return;
+    const data = await apiFetch(queryParams.toString());
+    if (!data.length) return;
 
   destroyChart('uptime');
   charts['uptime'] = new Chart(ctx, {
@@ -831,6 +951,19 @@ async function renderSystemUptimeChart() {
       },
     },
   });
+  } catch (err) {
+    console.error('Failed to render system uptime chart:', err);
+    showToast('Failed to load system uptime chart', 'error');
+    
+    // Show error message in chart container
+    if (ctx) {
+      ctx.getContext('2d').font = '14px Inter';
+      ctx.getContext('2d').fillStyle = getChartColor('muted');
+      ctx.getContext('2d').textAlign = 'center';
+      ctx.getContext('2d').textBaseline = 'middle';
+      ctx.getContext('2d').fillText('Failed to load chart data', ctx.width/2, ctx.height/2);
+    }
+  }
 }
 
 // ── 30-day uptime area chart (first site or aggregate) ────────────────────
@@ -870,9 +1003,11 @@ async function renderUptimeChart(sites) {
 async function renderHistogramChart(sites) {
   if (!sites.length) return;
   const id   = sites[0].id;
-  const data = await apiFetch(`histogram&id=${id}`);
   const ctx  = document.getElementById('chart-histogram');
   if (!ctx) return;
+
+  try {
+    const data = await apiFetch(`histogram&id=${id}`);
 
   destroyChart('histogram');
   charts['histogram'] = new Chart(ctx, {
@@ -911,6 +1046,19 @@ async function renderHistogramChart(sites) {
       },
     },
   });
+  } catch (err) {
+    console.error('Failed to render histogram chart:', err);
+    showToast('Failed to load histogram chart', 'error');
+    
+    // Show error message in chart container
+    if (ctx) {
+      ctx.getContext('2d').font = '14px Inter';
+      ctx.getContext('2d').fillStyle = getChartColor('muted');
+      ctx.getContext('2d').textAlign = 'center';
+      ctx.getContext('2d').textBaseline = 'middle';
+      ctx.getContext('2d').fillText('Failed to load chart data', ctx.width/2, ctx.height/2);
+    }
+  }
 }
 
 // ── Health gauge (doughnut) ───────────────────────────────────────────────

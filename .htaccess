@@ -26,6 +26,28 @@ Options -Indexes
     Deny from all
 </Files>
 
+# Block install.php direct access from web (allow only CLI)
+<Files "install.php">
+    Order deny,allow
+    Deny from all
+    # Allow only from localhost and private networks for development
+    Allow from 127.0.0.1 ::1
+    Allow from 192.168.0.0/16
+    Allow from 10.0.0.0/8
+    Allow from 172.16.0.0/12
+</Files>
+
+# Block bulk_add_sites.php from web (allow only CLI)
+<Files "bulk_add_sites.php">
+    Order deny,allow
+    Deny from all
+    # Allow only from localhost and private networks for development
+    Allow from 127.0.0.1 ::1
+    Allow from 192.168.0.0/16
+    Allow from 10.0.0.0/8
+    Allow from 172.16.0.0/12
+</Files>
+
 # Security headers
 <IfModule mod_headers.c>
     Header always set X-Content-Type-Options "nosniff"

@@ -1,6 +1,24 @@
 <?php
 define('MONITOR_ROOT', __DIR__);
 require_once MONITOR_ROOT . '/config.php';
+require_once MONITOR_ROOT . '/includes/auth.php';
+
+// Check if this is a CLI request
+$is_cli = (php_sapi_name() === 'cli');
+
+// For web requests, require login
+if (!$is_cli) {
+    requireLogin();
+    
+    // CSRF protection for web requests
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['csrf_token'] ?? '';
+        if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
+            header('HTTP/1.0 403 Forbidden');
+            die('Invalid CSRF token');
+        }
+    }
+}
 
 // Override DB_HOST for CLI if needed
 $host = (DB_HOST === 'localhost') ? '127.0.0.1' : DB_HOST;
