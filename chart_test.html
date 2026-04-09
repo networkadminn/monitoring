@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chart Test - Isolated</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/dashboard.css?v=1.0.9">
+  <style>
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #e4eaf6;
+    }
+    .test-container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .chart-panel {
+      background: #2a2a2a;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      border: 1px solid #3a3a3a;
+    }
+    .chart-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: #fff;
+    }
+    canvas {
+      max-height: 300px;
+    }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .success { background: #22c55e20; color: #22c55e; border: 1px solid #22c55e; }
+    .error { background: #ef444420; color: #ef4444; border: 1px solid #ef4444; }
+    .warning { background: #f59e0b20; color: #f59e0b; border: 1px solid #f59e0b; }
+  </style>
+</head>
+<body class="dark-theme">
+  <div class="test-container">
+    <h1>Chart.js Test Page</h1>
+    <div id="status" class="status">Loading...</div>
+    
+    <div class="chart-panel">
+      <div class="chart-title">Line Chart Test</div>
+      <canvas id="test-line-chart"></canvas>
+    </div>
+    
+    <div class="chart-panel">
+      <div class="chart-title">Bar Chart Test</div>
+      <canvas id="test-bar-chart"></canvas>
+    </div>
+    
+    <div class="chart-panel">
+      <div class="chart-title">Doughnut Chart Test</div>
+      <canvas id="test-doughnut-chart"></canvas>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    // Test functions
+    function updateStatus(message, type = 'success') {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+    }
+
+    function testChartAvailability() {
+      if (typeof Chart === 'undefined') {
+        updateStatus('Chart.js is NOT loaded', 'error');
+        return false;
+      } else {
+        updateStatus('Chart.js loaded successfully', 'success');
+        return true;
+      }
+    }
+
+    function createLineChart() {
+      try {
+        const ctx = document.getElementById('test-line-chart');
+        if (!ctx) throw new Error('Canvas element not found');
+
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+            datasets: [{
+              label: 'Test Data',
+              data: [12, 19, 3, 5, 2, 3],
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              tension: 0.4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: true }
+            },
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+        return true;
+      } catch (err) {
+        console.error('Line chart error:', err);
+        updateStatus('Line chart failed: ' + err.message, 'error');
+        return false;
+      }
+    }
+
+    function createBarChart() {
+      try {
+        const ctx = document.getElementById('test-bar-chart');
+        if (!ctx) throw new Error('Canvas element not found');
+
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+              label: 'Test Data',
+              data: [12, 19, 3, 5, 2, 3],
+              backgroundColor: [
+                'rgba(255, 99, 132, 0.2)',
+                'rgba(54, 162, 235, 0.2)',
+                'rgba(255, 206, 86, 0.2)',
+                'rgba(75, 192, 192, 0.2)',
+                'rgba(153, 102, 255, 0.2)',
+                'rgba(255, 159, 64, 0.2)'
+              ],
+              borderColor: [
+                'rgba(255, 99, 132, 1)',
+                'rgba(54, 162, 235, 1)',
+                'rgba(255, 206, 86, 1)',
+                'rgba(75, 192, 192, 1)',
+                'rgba(153, 102, 255, 1)',
+                'rgba(255, 159, 64, 1)'
+              ],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: true }
+            },
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+        return true;
+      } catch (err) {
+        console.error('Bar chart error:', err);
+        updateStatus('Bar chart failed: ' + err.message, 'error');
+        return false;
+      }
+    }
+
+    function createDoughnutChart() {
+      try {
+        const ctx = document.getElementById('test-doughnut-chart');
+        if (!ctx) throw new Error('Canvas element not found');
+
+        new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Red', 'Blue', 'Yellow'],
+            datasets: [{
+              data: [300, 50, 100],
+              backgroundColor: [
+                'rgba(255, 99, 132, 0.8)',
+                'rgba(54, 162, 235, 0.8)',
+                'rgba(255, 206, 86, 0.8)'
+              ],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { 
+                position: 'right',
+                labels: { color: '#e4eaf6' }
+              }
+            }
+          }
+        });
+        return true;
+      } catch (err) {
+        console.error('Doughnut chart error:', err);
+        updateStatus('Doughnut chart failed: ' + err.message, 'error');
+        return false;
+      }
+    }
+
+    // Run tests when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('Starting chart tests...');
+      
+      // Test Chart.js availability
+      if (!testChartAvailability()) return;
+
+      // Test each chart type
+      setTimeout(() => {
+        const lineSuccess = createLineChart();
+        const barSuccess = createBarChart();
+        const doughnutSuccess = createDoughnutChart();
+
+        if (lineSuccess && barSuccess && doughnutSuccess) {
+          updateStatus('All charts created successfully!', 'success');
+        } else {
+          updateStatus('Some charts failed to create', 'warning');
+        }
+      }, 100);
+    });
+  </script>
+</body>
+</html>
