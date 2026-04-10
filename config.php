@@ -70,6 +70,21 @@ define('ALERT_COOLDOWN', (int) getEnvValue('ALERT_COOLDOWN', 3600));
 define('CHECK_TIMEOUT', (int) getEnvValue('CHECK_TIMEOUT', 30));
 define('LOG_RETENTION_DAYS', (int) getEnvValue('LOG_RETENTION_DAYS', 90));
 
+// Enhanced monitoring settings
+define('ENABLE_DETAILED_MONITORING', getEnvValue('ENABLE_DETAILED_MONITORING', 'true') === 'true');
+define('HTTP_TIMEOUT', (int) getEnvValue('HTTP_TIMEOUT', 30));
+define('SSL_TIMEOUT', (int) getEnvValue('SSL_TIMEOUT', 15));
+define('PORT_TIMEOUT', (int) getEnvValue('PORT_TIMEOUT', 10));
+define('DNS_TIMEOUT', (int) getEnvValue('DNS_TIMEOUT', 10));
+define('PING_TIMEOUT', (int) getEnvValue('PING_TIMEOUT', 5));
+define('MAX_REDIRECTS', (int) getEnvValue('MAX_REDIRECTS', 5));
+define('ENABLE_CONTENT_ANALYSIS', getEnvValue('ENABLE_CONTENT_ANALYSIS', 'true') === 'true');
+define('ENABLE_SSL_CHAIN_ANALYSIS', getEnvValue('ENABLE_SSL_CHAIN_ANALYSIS', 'true') === 'true');
+define('ENABLE_PERFORMANCE_METRICS', getEnvValue('ENABLE_PERFORMANCE_METRICS', 'true') === 'true');
+define('RETRY_FAILED_CHECKS', getEnvValue('RETRY_FAILED_CHECKS', 'true') === 'true');
+define('MAX_RETRIES', (int) getEnvValue('MAX_RETRIES', 3));
+define('RETRY_DELAY', (int) getEnvValue('RETRY_DELAY', 1000)); // milliseconds
+
 // =============================================================================
 // Dashboard Authentication
 // =============================================================================

@@ -98,9 +98,11 @@ try {
                 
             case 'slowest':
                 jsonOk([
-                    ['name' => 'Test Site 5', 'url' => 'https://example5.com', 'avg_response' => 298],
-                    ['name' => 'Test Site 1', 'url' => 'https://example1.com', 'avg_response' => 234],
-                    ['name' => 'Test Site 2', 'url' => 'https://example2.com', 'avg_response' => 189]
+                    ['name' => 'Test Site 1', 'avg_rt' => 1234],
+                    ['name' => 'Test Site 2', 'avg_rt' => 987],
+                    ['name' => 'Test Site 3', 'avg_rt' => 876],
+                    ['name' => 'Test Site 4', 'avg_rt' => 765],
+                    ['name' => 'Test Site 5', 'avg_rt' => 654]
                 ]);
                 break;
                 
@@ -487,6 +489,171 @@ try {
             }
             jsonOk(['sent' => true, 'to' => $to]);
             break;
+            
+        // Enhanced monitoring endpoints
+        case 'detailed_site_status':
+            $siteId = (int) ($_GET['site_id'] ?? 0);
+            if ($siteId <= 0) jsonError('Invalid site ID');
+            
+            $site = Database::fetchOne('SELECT * FROM sites WHERE id = ?', [$siteId]);
+            if (!$site) jsonError('Site not found');
+            
+            // Get latest enhanced log entry if table exists
+            $latestLog = null;
+            try {
+                $latestLog = Database::fetchOne(
+                    'SELECT * FROM logs_enhanced WHERE site_id = ? ORDER BY created_at DESC LIMIT 1',
+                    [$siteId]
+                );
+            } catch (Exception $e) {
+                // Fallback to regular logs table
+                $latestLog = Database::fetchOne(
+                    'SELECT * FROM logs WHERE site_id = ? ORDER BY created_at DESC LIMIT 1',
+                    [$siteId]
+                );
+            }
+            
+            // Get performance metrics for last 24 hours if table exists
+            $performance = [];
+            try {
+                $performance = Database::fetchAll(
+                    'SELECT metric_type, AVG(metric_value) as avg_value, 
+                            MIN(metric_value) as min_value, MAX(metric_value) as max_value
+                     FROM performance_metrics 
+                     WHERE site_id = ? AND hour_bucket >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                     GROUP BY metric_type',
+                    [$siteId]
+                );
+            } catch (Exception $e) {
+                // Performance metrics table doesn't exist yet
+            }
+            
+            // Get SSL certificate details if table exists
+            $sslDetails = [];
+            try {
+                $sslDetails = Database::fetchAll(
+                    'SELECT * FROM ssl_certificates WHERE site_id = ? ORDER BY chain_position',
+                    [$siteId]
+                );
+            } catch (Exception $e) {
+                // SSL certificates table doesn't exist yet
+            }
+            
+            // Get error statistics if table exists
+            $errorStats = [];
+            try {
+                $errorStats = Database::fetchAll(
+                    'SELECT error_category, COUNT(*) as count, 
+                            MIN(first_seen) as first_seen, MAX(last_seen) as last_seen
+                     FROM error_categories 
+                     WHERE site_id = ? AND last_seen >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                     GROUP BY error_category
+                     ORDER BY count DESC',
+                    [$siteId]
+                );
+            } catch (Exception $e) {
+                // Error categories table doesn't exist yet
+            }
+            
+            jsonOk([
+                'site' => $site,
+                'latest_log' => $latestLog,
+                'performance_metrics' => $performance,
+                'ssl_certificates' => $sslDetails,
+                'error_statistics' => $errorStats
+            ]);
+            break;
+            
+        case 'performance_trends':
+            $siteId = (int) ($_GET['site_id'] ?? 0);
+            $hours = (int) ($_GET['hours'] ?? 24);
+            
+            if ($siteId <= 0) jsonError('Invalid site ID');
+            
+            try {
+                $trends = Database::fetchAll(
+                    'SELECT hour_bucket, metric_type, metric_value
+                     FROM performance_metrics 
+                     WHERE site_id = ? AND hour_bucket >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+                     ORDER BY hour_bucket ASC',
+                    [$siteId, $hours]
+                );
+                jsonOk($trends);
+            } catch (Exception $e) {
+                // Return empty array if table doesn't exist
+                jsonOk([]);
+            }
+            break;
+            
+        case 'ssl_analysis':
+            $siteId = (int) ($_GET['site_id'] ?? 0);
+            if ($siteId <= 0) jsonError('Invalid site ID');
+            
+            try {
+                $sslData = Database::fetchAll(
+                    'SELECT * FROM ssl_certificates WHERE site_id = ? ORDER BY chain_position',
+                    [$siteId]
+                );
+                jsonOk($sslData);
+            } catch (Exception $e) {
+                // Return empty array if table doesn't exist
+                jsonOk([]);
+            }
+            break;
+            
+        case 'error_categories':
+            $siteId = (int) ($_GET['site_id'] ?? 0);
+            $days = (int) ($_GET['days'] ?? 7);
+            
+            try {
+                if ($siteId > 0) {
+                    $errors = Database::fetchAll(
+                        'SELECT error_category, COUNT(*) as count,
+                                MIN(first_seen) as first_seen, MAX(last_seen) as last_seen
+                         FROM error_categories 
+                         WHERE site_id = ? AND last_seen >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                         GROUP BY error_category
+                         ORDER BY count DESC',
+                        [$siteId, $days]
+                    );
+                } else {
+                    $errors = Database::fetchAll(
+                        'SELECT ec.error_category, COUNT(*) as count,
+                                MIN(ec.first_seen) as first_seen, MAX(ec.last_seen) as last_seen,
+                                GROUP_CONCAT(DISTINCT s.name) as affected_sites
+                         FROM error_categories ec
+                         JOIN sites s ON ec.site_id = s.id
+                         WHERE ec.last_seen >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                         GROUP BY ec.error_category
+                         ORDER BY count DESC',
+                        [$days]
+                    );
+                }
+                jsonOk($errors);
+            } catch (Exception $e) {
+                // Return empty array if table doesn't exist
+                jsonOk([]);
+            }
+            break;
+            
+        case 'monitoring_config':
+            jsonOk([
+                'detailed_monitoring_enabled' => ENABLE_DETAILED_MONITORING,
+                'content_analysis_enabled' => ENABLE_CONTENT_ANALYSIS,
+                'ssl_chain_analysis_enabled' => ENABLE_SSL_CHAIN_ANALYSIS,
+                'performance_metrics_enabled' => ENABLE_PERFORMANCE_METRICS,
+                'retry_failed_checks' => RETRY_FAILED_CHECKS,
+                'max_retries' => MAX_RETRIES,
+                'retry_delay' => RETRY_DELAY,
+                'http_timeout' => HTTP_TIMEOUT,
+                'ssl_timeout' => SSL_TIMEOUT,
+                'port_timeout' => PORT_TIMEOUT,
+                'dns_timeout' => DNS_TIMEOUT,
+                'ping_timeout' => PING_TIMEOUT,
+                'max_redirects' => MAX_REDIRECTS,
+            ]);
+            break;
+            
         // Run cron manually
         case 'run_cron':
             if ($method !== 'POST') jsonError('POST required', 405);
