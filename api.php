@@ -493,7 +493,7 @@ try {
         // Enhanced monitoring endpoints
         case 'detailed_site_status':
             $siteId = (int) ($_GET['site_id'] ?? 0);
-            if ($siteId <= 0) jsonError('Invalid site ID');
+            if ($siteId <= 0 || $siteId > 999999) jsonError('Invalid site ID');
             
             $site = Database::fetchOne('SELECT * FROM sites WHERE id = ?', [$siteId]);
             if (!$site) jsonError('Site not found');
@@ -568,7 +568,8 @@ try {
             $siteId = (int) ($_GET['site_id'] ?? 0);
             $hours = (int) ($_GET['hours'] ?? 24);
             
-            if ($siteId <= 0) jsonError('Invalid site ID');
+            if ($siteId <= 0 || $siteId > 999999) jsonError('Invalid site ID');
+            if ($hours < 1 || $hours > 168) jsonError('Hours must be between 1 and 168');
             
             try {
                 $trends = Database::fetchAll(
@@ -587,7 +588,7 @@ try {
             
         case 'ssl_analysis':
             $siteId = (int) ($_GET['site_id'] ?? 0);
-            if ($siteId <= 0) jsonError('Invalid site ID');
+            if ($siteId <= 0 || $siteId > 999999) jsonError('Invalid site ID');
             
             try {
                 $sslData = Database::fetchAll(
@@ -604,6 +605,9 @@ try {
         case 'error_categories':
             $siteId = (int) ($_GET['site_id'] ?? 0);
             $days = (int) ($_GET['days'] ?? 7);
+            
+            if ($siteId < 0 || $siteId > 999999) jsonError('Invalid site ID');
+            if ($days < 1 || $days > 365) jsonError('Days must be between 1 and 365');
             
             try {
                 if ($siteId > 0) {

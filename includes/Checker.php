@@ -236,13 +236,13 @@ class Checker {
         if ($curlError) {
             $result['error_category'] = self::categorizeError($curlErrCode);
             $errorMsg = match($curlErrCode) {
-                CURLE_OPERATION_TIMEDOUT  => 'Connection timed out after ' . CHECK_TIMEOUT . 's',
+                CURLE_OPERATION_TIMEDOUT  => 'Connection timed out after ' . HTTP_TIMEOUT . 's',
                 CURLE_COULDNT_RESOLVE_HOST => 'DNS resolution failed for ' . parse_url($site['url'], PHP_URL_HOST),
                 CURLE_COULDNT_CONNECT     => 'Connection refused - server may be down',
                 CURLE_SSL_CONNECT_ERROR   => 'SSL handshake failed - certificate issues',
                 CURLE_SSL_CERTPROBLEM     => 'SSL certificate problem detected',
                 CURLE_SSL_CACERT          => 'SSL CA certificate verification failed',
-                default                   => "Network error ($curlErrCode): $curlError",
+                default                   => "Network error ($curlErrCode): " . htmlspecialchars($curlError, ENT_QUOTES, 'UTF-8'),
             };
             return array_merge(['status' => 'down', 'response_time' => $responseTime, 'error_message' => $errorMsg, 'ssl_expiry_days' => $sslDays], $result);
         }
@@ -499,6 +499,12 @@ class Checker {
     // Content analysis helper
     // -------------------------------------------------------------------------
     private static function analyzeContent(string $body, array $site): array {
+        // Limit content size to prevent memory issues
+        $maxSize = 1024 * 1024; // 1MB limit
+        if (strlen($body) > $maxSize) {
+            $body = substr($body, 0, $maxSize);
+        }
+        
         $analysis = [
             'size_bytes' => strlen($body),
             'word_count' => str_word_count(strip_tags($body)),
@@ -507,6 +513,7 @@ class Checker {
             'has_xml' => false,
             'encoding' => mb_detect_encoding($body, ['UTF-8', 'ISO-8859-1', 'Windows-1252'], true),
             'compressed' => function_exists('gzdecode') && @gzdecode($body) !== false,
+            'truncated' => strlen($body) === $maxSize,
         ];
         
         // Safer XML detection - only try to parse if it looks like XML

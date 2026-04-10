@@ -8,37 +8,39 @@ CREATE TABLE IF NOT EXISTS `logs_enhanced` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `site_id` int(11) NOT NULL,
   `status` enum('up','down','warning') NOT NULL,
-  `response_time` decimal(8,2) DEFAULT NULL,
+  `response_time` decimal(8,2) DEFAULT NULL CHECK (`response_time` >= 0),
   `error_message` text DEFAULT NULL,
   `error_category` varchar(50) DEFAULT NULL,
-  `ssl_expiry_days` int(11) DEFAULT NULL,
-  `retry_count` int(11) DEFAULT 0,
-  `performance_data` json DEFAULT NULL,
-  `content_check_data` json DEFAULT NULL,
-  `ssl_details_data` json DEFAULT NULL,
-  `connectivity_data` json DEFAULT NULL,
+  `ssl_expiry_days` int(11) DEFAULT NULL CHECK (`ssl_expiry_days` >= -9999),
+  `retry_count` int(11) DEFAULT 0 CHECK (`retry_count` >= 0 AND `retry_count` <= 10),
+  `performance_data` json DEFAULT NULL CHECK (JSON_VALID(`performance_data`)),
+  `content_check_data` json DEFAULT NULL CHECK (JSON_VALID(`content_check_data`)),
+  `ssl_details_data` json DEFAULT NULL CHECK (JSON_VALID(`ssl_details_data`)),
+  `connectivity_data` json DEFAULT NULL CHECK (JSON_VALID(`connectivity_data`)),
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_site_id` (`site_id`),
   KEY `idx_status` (`status`),
   KEY `idx_created_at` (`created_at`),
   KEY `idx_error_category` (`error_category`),
-  FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE CASCADE
+  KEY `idx_site_status_created` (`site_id`, `status`, `created_at`),
+  CONSTRAINT `fk_logs_enhanced_site` FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create performance metrics aggregation table
 CREATE TABLE IF NOT EXISTS `performance_metrics` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `site_id` int(11) NOT NULL,
-  `metric_type` enum('dns_time','connect_time','ttfb','total_time','download_size') NOT NULL,
-  `metric_value` decimal(10,2) NOT NULL,
+  `metric_type` enum('dns_time','connect_time','ttfb','total_time','download_size','upload_size') NOT NULL,
+  `metric_value` decimal(10,2) NOT NULL CHECK (`metric_value` >= 0),
   `hour_bucket` datetime NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_metric` (`site_id`,`metric_type`,`hour_bucket`),
   KEY `idx_site_metric` (`site_id`,`metric_type`),
   KEY `idx_hour_bucket` (`hour_bucket`),
-  FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE CASCADE
+  KEY `idx_site_hour` (`site_id`, `hour_bucket`),
+  CONSTRAINT `fk_performance_site` FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create SSL certificate details table

@@ -20,19 +20,33 @@ class EnhancedMonitoring {
     async loadMonitoringConfig() {
         try {
             const response = await fetch('api.php?action=monitoring_config');
-            this.config = await response.json();
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load config');
+            }
+            this.config = data.data;
             console.log('Monitoring config loaded:', this.config);
         } catch (error) {
             console.error('Failed to load monitoring config:', error);
+            this.config = {};
         }
     }
 
     setupEventListeners() {
         // Enhanced site details modal
         document.addEventListener('click', (e) => {
-            if (e.target.closest('.btn-enhanced-details')) {
-                const siteId = e.target.closest('.btn-enhanced-details').dataset.siteId;
-                this.showEnhancedSiteDetails(siteId);
+            const button = e.target.closest('.btn-enhanced-details');
+            if (button) {
+                const siteId = button.dataset.siteId;
+                // Validate siteId is a positive integer
+                if (siteId && /^[1-9]\d*$/.test(siteId)) {
+                    this.showEnhancedSiteDetails(parseInt(siteId));
+                } else {
+                    console.error('Invalid site ID:', siteId);
+                }
             }
         });
 

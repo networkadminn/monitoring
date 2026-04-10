@@ -70,20 +70,20 @@ define('ALERT_COOLDOWN', (int) getEnvValue('ALERT_COOLDOWN', 3600));
 define('CHECK_TIMEOUT', (int) getEnvValue('CHECK_TIMEOUT', 30));
 define('LOG_RETENTION_DAYS', (int) getEnvValue('LOG_RETENTION_DAYS', 90));
 
-// Enhanced monitoring settings
-define('ENABLE_DETAILED_MONITORING', getEnvValue('ENABLE_DETAILED_MONITORING', 'true') === 'true');
-define('HTTP_TIMEOUT', (int) getEnvValue('HTTP_TIMEOUT', 30));
-define('SSL_TIMEOUT', (int) getEnvValue('SSL_TIMEOUT', 15));
-define('PORT_TIMEOUT', (int) getEnvValue('PORT_TIMEOUT', 10));
-define('DNS_TIMEOUT', (int) getEnvValue('DNS_TIMEOUT', 10));
-define('PING_TIMEOUT', (int) getEnvValue('PING_TIMEOUT', 5));
-define('MAX_REDIRECTS', (int) getEnvValue('MAX_REDIRECTS', 5));
-define('ENABLE_CONTENT_ANALYSIS', getEnvValue('ENABLE_CONTENT_ANALYSIS', 'true') === 'true');
-define('ENABLE_SSL_CHAIN_ANALYSIS', getEnvValue('ENABLE_SSL_CHAIN_ANALYSIS', 'true') === 'true');
-define('ENABLE_PERFORMANCE_METRICS', getEnvValue('ENABLE_PERFORMANCE_METRICS', 'true') === 'true');
-define('RETRY_FAILED_CHECKS', getEnvValue('RETRY_FAILED_CHECKS', 'true') === 'true');
-define('MAX_RETRIES', (int) getEnvValue('MAX_RETRIES', 3));
-define('RETRY_DELAY', (int) getEnvValue('RETRY_DELAY', 1000)); // milliseconds
+// Enhanced monitoring settings with validation
+define('ENABLE_DETAILED_MONITORING', filter_var(getEnvValue('ENABLE_DETAILED_MONITORING', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('HTTP_TIMEOUT', max(5, min(300, (int) getEnvValue('HTTP_TIMEOUT', 30)))); // 5-300s range
+define('SSL_TIMEOUT', max(5, min(60, (int) getEnvValue('SSL_TIMEOUT', 15)))); // 5-60s range
+define('PORT_TIMEOUT', max(1, min(30, (int) getEnvValue('PORT_TIMEOUT', 10)))); // 1-30s range
+define('DNS_TIMEOUT', max(1, min(30, (int) getEnvValue('DNS_TIMEOUT', 10)))); // 1-30s range
+define('PING_TIMEOUT', max(1, min(15, (int) getEnvValue('PING_TIMEOUT', 5)))); // 1-15s range
+define('MAX_REDIRECTS', max(0, min(10, (int) getEnvValue('MAX_REDIRECTS', 5)))); // 0-10 range
+define('ENABLE_CONTENT_ANALYSIS', filter_var(getEnvValue('ENABLE_CONTENT_ANALYSIS', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('ENABLE_SSL_CHAIN_ANALYSIS', filter_var(getEnvValue('ENABLE_SSL_CHAIN_ANALYSIS', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('ENABLE_PERFORMANCE_METRICS', filter_var(getEnvValue('ENABLE_PERFORMANCE_METRICS', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('RETRY_FAILED_CHECKS', filter_var(getEnvValue('RETRY_FAILED_CHECKS', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('MAX_RETRIES', max(0, min(10, (int) getEnvValue('MAX_RETRIES', 3)))); // 0-10 range
+define('RETRY_DELAY', max(100, min(10000, (int) getEnvValue('RETRY_DELAY', 1000)))); // 100ms-10s range
 
 // =============================================================================
 // Dashboard Authentication
