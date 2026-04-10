@@ -98,11 +98,11 @@ class Checker {
             'connectivity' => [],
         ];
 
-        // Build custom headers
+        // Build custom headers with proper Accept-Encoding
         $headers = [
             'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language: en-US,en;q=0.9',
-            'Accept-Encoding: gzip, deflate, br',
+            'Accept-Encoding: gzip, deflate',  // Removed 'br' to fix encoding issues
             'Connection: keep-alive',
             'Cache-Control: no-cache',
             'Pragma: no-cache',
@@ -156,10 +156,12 @@ class Checker {
             CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
             CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
             CURLOPT_HTTPHEADER     => $headers,
-            CURLOPT_ENCODING       => 'gzip, deflate, br',
+            CURLOPT_ENCODING       => '',  // Empty string to accept all encodings cURL supports
             CURLOPT_CUSTOMREQUEST  => $method,
             CURLOPT_HEADER         => true,
             CURLOPT_NOPROGRESS     => !ENABLE_PERFORMANCE_METRICS,
+            CURLOPT_FAILONERROR    => false,  // Don't fail on HTTP errors
+            CURLOPT_VERBOSE        => false,  // Set to true for debugging
         ]);
         
         // Only set progress function if performance metrics are enabled
@@ -170,6 +172,10 @@ class Checker {
                 }
             });
         }
+        
+        // Add fallback mechanism for failed requests
+        $fallbackResponse = null;
+        $originalEncoding = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
 
         // POST/PUT body
         if (in_array($method, ['POST', 'PUT', 'PATCH']) && !empty($site['request_body'])) {
@@ -181,6 +187,27 @@ class Checker {
         $curlError    = curl_error($ch);
         $curlErrCode  = curl_errno($ch);
         $responseTime = round((microtime(true) - $start) * 1000, 2);
+        
+        // Fallback mechanism for encoding errors
+        if ($curlErrCode === CURLE_BAD_CONTENT_ENCODING && $fallbackResponse === null) {
+            // Try again without encoding
+            curl_setopt($ch, CURLOPT_ENCODING, '');
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language: en-US,en;q=0.9',
+                'Connection: keep-alive',
+                'Cache-Control: no-cache',
+                'Pragma: no-cache',
+            ]);
+            $fallbackResponse = curl_exec($ch);
+            $curlError = curl_error($ch);
+            $curlErrCode = curl_errno($ch);
+            
+            if (!$curlError && $fallbackResponse) {
+                $response = $fallbackResponse;
+                $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            }
+        }
 
         // Enhanced performance metrics (conditional)
         if (ENABLE_PERFORMANCE_METRICS) {
@@ -235,6 +262,16 @@ class Checker {
 
         if ($curlError) {
             $result['error_category'] = self::categorizeError($curlErrCode);
+            
+            // Enhanced error handling with debug info
+            $debugInfo = [
+                'curl_code' => $curlErrCode,
+                'curl_error' => $curlError,
+                'http_code' => $httpCode,
+                'url' => $site['url'],
+                'timeout' => HTTP_TIMEOUT,
+            ];
+            
             $errorMsg = match($curlErrCode) {
                 CURLE_OPERATION_TIMEDOUT  => 'Connection timed out after ' . HTTP_TIMEOUT . 's',
                 CURLE_COULDNT_RESOLVE_HOST => 'DNS resolution failed for ' . parse_url($site['url'], PHP_URL_HOST),
@@ -242,8 +279,15 @@ class Checker {
                 CURLE_SSL_CONNECT_ERROR   => 'SSL handshake failed - certificate issues',
                 CURLE_SSL_CERTPROBLEM     => 'SSL certificate problem detected',
                 CURLE_SSL_CACERT          => 'SSL CA certificate verification failed',
+                CURLE_UNSUPPORTED_PROTOCOL => 'Unsupported protocol - check URL format',
                 default                   => "Network error ($curlErrCode): " . htmlspecialchars($curlError, ENT_QUOTES, 'UTF-8'),
             };
+            
+            // Log debug information
+            if (defined('DEBUG_MODE') && DEBUG_MODE) {
+                error_log("SiteMonitor Debug: " . json_encode($debugInfo));
+            }
+            
             return array_merge(['status' => 'down', 'response_time' => $responseTime, 'error_message' => $errorMsg, 'ssl_expiry_days' => $sslDays], $result);
         }
 
@@ -363,12 +407,12 @@ class Checker {
             return ['status' => 'down', 'response_time' => $responseTime, 'error_message' => "Port $port unreachable: $errstr ($errno)"];
         }
 
-        fclose($conn);
+        if ($conn) fclose($conn);
         return ['status' => 'up', 'response_time' => $responseTime];
     }
 
     // -------------------------------------------------------------------------
-    // DNS record check
+    // DNS record check - Enhanced with better error handling
     // -------------------------------------------------------------------------
     private static function checkDns(array $site): array {
         $start   = microtime(true);
@@ -378,11 +422,39 @@ class Checker {
             return ['status' => 'down', 'response_time' => round((microtime(true) - $start) * 1000, 2), 'error_message' => 'No hostname specified'];
         }
         
-        $records = dns_get_record($host, DNS_A | DNS_AAAA | DNS_MX | DNS_CNAME) ?: [];
+        // Enhanced DNS resolution with multiple record types and fallback
+        $records = [];
+        $errors = [];
+        
+        // Try different DNS record types separately for better error handling
+        $recordTypes = [DNS_A, DNS_AAAA, DNS_MX, DNS_CNAME];
+        foreach ($recordTypes as $type) {
+            try {
+                $typeRecords = @dns_get_record($host, $type);
+                if ($typeRecords !== false && is_array($typeRecords)) {
+                    $records = array_merge($records, $typeRecords);
+                }
+            } catch (Exception $e) {
+                $errors[] = "DNS type $type: " . $e->getMessage();
+            }
+        }
+        
         $responseTime = round((microtime(true) - $start) * 1000, 2);
 
         if (empty($records)) {
-            return ['status' => 'down', 'response_time' => $responseTime, 'error_message' => "No DNS records found for $host"];
+            // Try fallback with gethostbyname for basic A record
+            $fallbackIp = @gethostbyname($host);
+            if ($fallbackIp !== $host) {
+                // Fallback succeeded
+                $records = [['type' => 'A', 'ip' => $fallbackIp, 'host' => $host]];
+            } else {
+                // All DNS resolution failed
+                $errorMsg = "DNS resolution failed for $host";
+                if (!empty($errors)) {
+                    $errorMsg .= " - " . implode('; ', array_slice($errors, 0, 2));
+                }
+                return ['status' => 'down', 'response_time' => $responseTime, 'error_message' => $errorMsg];
+            }
         }
 
         if (!empty($site['keyword'])) {
