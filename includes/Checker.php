@@ -3,9 +3,28 @@
 // includes/Checker.php - All monitoring check logic
 // =============================================================================
 
+require_once __DIR__ . '/CircuitBreaker.php';
+require_once __DIR__ . '/ConnectionPool.php';
+require_once __DIR__ . '/Logger.php';
+
 class Checker {
 
     public static function check(array $site): array {
+        $siteId = (int) $site['id'];
+        
+        // Check circuit breaker state
+        if (!CircuitBreaker::check($siteId)) {
+            $state = CircuitBreaker::getState($siteId);
+            return [
+                'status' => 'down',
+                'response_time' => 0,
+                'error_message' => "Circuit breaker open ({$state['failure_count']} failures)",
+                'error_category' => 'circuit_breaker',
+                'circuit_breaker_state' => $state['state'],
+                'retry_count' => 0,
+            ];
+        }
+        
         $result = [
             'status'          => 'up',
             'response_time'   => 0,
@@ -22,7 +41,7 @@ class Checker {
         $start = microtime(true);
         $lastError = null;
         
-        // Implement retry logic for failed checks
+        // Implement retry logic with exponential backoff
         $maxRetries = RETRY_FAILED_CHECKS ? MAX_RETRIES : 0;
         
         for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
@@ -42,17 +61,19 @@ class Checker {
                 
                 $result = array_merge($result, $checkResult);
                 
-                // If check succeeded, break out of retry loop
+                // If check succeeded, record success and break
                 if ($result['status'] === 'up') {
+                    CircuitBreaker::recordSuccess($siteId);
                     break;
                 }
                 
                 $lastError = $result['error_message'];
                 
-                // If this is not the last attempt, wait before retrying
+                // If this is not the last attempt, wait with exponential backoff
                 if ($attempt < $maxRetries) {
                     $result['retry_count'] = $attempt + 1;
-                    usleep(RETRY_DELAY * 1000); // Convert milliseconds to microseconds
+                    $delay = self::calculateBackoffDelay($attempt);
+                    usleep($delay * 1000); // Convert milliseconds to microseconds
                 }
                 
             } catch (Throwable $e) {
@@ -61,9 +82,15 @@ class Checker {
                 
                 if ($attempt < $maxRetries) {
                     $result['retry_count'] = $attempt + 1;
-                    usleep(RETRY_DELAY * 1000);
+                    $delay = self::calculateBackoffDelay($attempt);
+                    usleep($delay * 1000);
                 }
             }
+        }
+        
+        // Record failure if all retries failed
+        if ($result['status'] === 'down') {
+            CircuitBreaker::recordFailure($siteId);
         }
         
         // If all retries failed, set final error message
@@ -77,6 +104,9 @@ class Checker {
         if (empty($result['response_time'])) {
             $result['response_time'] = round((microtime(true) - $start) * 1000, 2);
         }
+
+        // Log the check result
+        Logger::checkResult($siteId, $site, $result);
 
         return $result;
     }
@@ -140,8 +170,15 @@ class Checker {
         }
 
         $method = strtoupper($site['http_method'] ?? 'GET');
+        $parsedUrl = parse_url($site['url']);
+        $host = $parsedUrl['host'] ?? '';
+        $port = $parsedUrl['port'] ?? ($parsedUrl['scheme'] === 'https' ? 443 : 80);
 
-        $ch = curl_init();
+        // Try to get connection from pool
+        $ch = ConnectionPool::getConnection($host, $port);
+        if (!$ch) {
+            $ch = curl_init();
+        }
         curl_setopt_array($ch, [
             CURLOPT_URL            => $site['url'],
             CURLOPT_RETURNTRANSFER => true,
@@ -258,7 +295,8 @@ class Checker {
         // Connectivity analysis (always enabled for basic monitoring)
         $result['connectivity'] = self::analyzeConnectivity($site['url'], $responseHeaders, $httpCode);
 
-        curl_close($ch);
+        // Release connection back to pool
+        ConnectionPool::releaseConnection($ch, $host, $port);
 
         if ($curlError) {
             $result['error_category'] = self::categorizeError($curlErrCode);
@@ -777,5 +815,22 @@ class Checker {
         }
 
         return null; // validation passed
+    }
+    
+    // -------------------------------------------------------------------------
+    // Exponential backoff calculation
+    // -------------------------------------------------------------------------
+    private static function calculateBackoffDelay(int $attempt): int {
+        // Base delay with exponential backoff: base * (2^attempt) + jitter
+        $baseDelay = RETRY_DELAY;
+        $exponentialDelay = $baseDelay * pow(2, $attempt);
+        
+        // Add jitter to prevent thundering herd
+        $jitter = mt_rand(0, (int)($exponentialDelay * 0.1));
+        
+        // Cap at maximum delay (5 seconds)
+        $maxDelay = 5000;
+        
+        return min($exponentialDelay + $jitter, $maxDelay);
     }
 }

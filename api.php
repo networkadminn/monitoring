@@ -9,6 +9,7 @@ require_once MONITOR_ROOT . '/includes/Database.php';
 require_once MONITOR_ROOT . '/includes/Statistics.php';
 require_once MONITOR_ROOT . '/includes/Checker.php';
 require_once MONITOR_ROOT . '/includes/Helpers.php';
+require_once MONITOR_ROOT . '/includes/Validator.php';
 require_once MONITOR_ROOT . '/includes/auth.php';
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -790,39 +791,75 @@ function addSite(array $d): void {
         $clean[$f] = isset($d[$f]) ? trim((string) $d[$f]) : null;
     }
 
-    if (empty($clean['name'])) jsonError('Name is required');
-    if (empty($clean['url'])) jsonError('URL is required');
+    try {
+        // Validate required fields
+        if (empty($clean['name'])) {
+            jsonError('Name is required');
+        }
+        $clean['name'] = Validator::validateSiteName($clean['name']);
+        
+        if (empty($clean['url'])) {
+            jsonError('URL is required');
+        }
+        $clean['url'] = Validator::validateUrl($clean['url']);
 
-    if (!empty($clean['alert_email'])) {
-        $split = array_filter(array_map('trim', explode(',', $clean['alert_email'])));
-        foreach ($split as $email) {
-            if (!validateEmail($email)) {
-                jsonError('Invalid alert email: ' . htmlspecialchars($email));
+        // Validate check type
+        $clean['check_type'] = Validator::validateCheckType($clean['check_type']);
+
+        // Validate email addresses
+        if (!empty($clean['alert_email'])) {
+            $split = array_filter(array_map('trim', explode(',', $clean['alert_email'])));
+            $validatedEmails = [];
+            foreach ($split as $email) {
+                $validatedEmails[] = Validator::validateEmail($email);
             }
+            $clean['alert_email'] = implode(',', $validatedEmails);
         }
-        $clean['alert_email'] = implode(',', $split);
-    }
 
-    $allowedTypes = ['http','ssl','port','dns','keyword'];
-    if (!in_array($clean['check_type'], $allowedTypes, true)) {
-        jsonError('Invalid check type');
-    }
+        // Validate phone number
+        if (!empty($clean['alert_phone'])) {
+            $clean['alert_phone'] = Validator::validatePhone($clean['alert_phone']);
+        }
 
-    if (in_array($clean['check_type'], ['http', 'keyword', 'ssl'], true)) {
-        if (!filter_var($clean['url'], FILTER_VALIDATE_URL)) {
-            jsonError('Invalid URL format');
+        // Validate port for port checks
+        if ($clean['check_type'] === 'port') {
+            if (empty($clean['hostname']) && empty($clean['url'])) {
+                jsonError('Hostname or URL required for port check');
+            }
+            $clean['port'] = Validator::validatePort((int) $clean['port']);
         }
-    }
 
-    if ($clean['check_type'] === 'port') {
-        if (empty($clean['hostname']) && empty($clean['url'])) {
-            jsonError('Hostname or URL required for port check');
+        // Validate numeric fields
+        if (!empty($clean['expected_status'])) {
+            $clean['expected_status'] = Validator::validateInt($clean['expected_status'], 'Expected status', 100, 599);
         }
-        $port = (int) $clean['port'];
-        if ($port < 1 || $port > 65535) {
-            jsonError('Invalid port number');
+        
+        if (!empty($clean['failure_threshold'])) {
+            $clean['failure_threshold'] = Validator::validateInt($clean['failure_threshold'], 'Failure threshold', 1, 20);
         }
-        $clean['port'] = $port;
+        
+        if (!empty($clean['recovery_threshold'])) {
+            $clean['recovery_threshold'] = Validator::validateInt($clean['recovery_threshold'], 'Recovery threshold', 1, 20);
+        }
+        
+        if (!empty($clean['check_interval'])) {
+            $clean['check_interval'] = Validator::validateInt($clean['check_interval'], 'Check interval', 1, 1440);
+        }
+
+        // Validate boolean fields
+        $clean['is_active'] = Validator::validateBool($clean['is_active']);
+
+        // Validate text fields
+        if (!empty($clean['tags'])) {
+            $clean['tags'] = Validator::sanitizeText($clean['tags'], 500);
+        }
+        
+        if (!empty($clean['keyword'])) {
+            $clean['keyword'] = Validator::sanitizeText($clean['keyword'], 1000);
+        }
+
+    } catch (InvalidArgumentException $e) {
+        jsonError('Validation error: ' . $e->getMessage());
     }
 
     if ($clean['check_type'] === 'dns' && empty($clean['hostname'])) {

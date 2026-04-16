@@ -1,7 +1,9 @@
 <?php
 // =============================================================================
-// includes/Statistics.php - Aggregation & analytics queries
+// includes/Statistics.php - Aggregation queries for dashboard charts
 // =============================================================================
+
+require_once __DIR__ . '/Cache.php';
 
 class Statistics {
 
@@ -9,15 +11,17 @@ class Statistics {
     // Uptime % for a site over N days
     // -------------------------------------------------------------------------
     public static function getUptime(int $siteId, int $days = 30): float {
-        $row = Database::fetchOne(
-            'SELECT COUNT(*) AS total,
-                    SUM(status = "up") AS up_count
-             FROM logs
-             WHERE site_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)',
-            [$siteId, $days]
-        );
-        if (!$row || $row['total'] == 0) return 100.0;
-        return round(($row['up_count'] / $row['total']) * 100, 2);
+        return Cache::cacheUptime($siteId, $days, function() use ($siteId, $days) {
+            $row = Database::fetchOne(
+                'SELECT COUNT(*) AS total,
+                        SUM(status = "up") AS up_count
+                 FROM logs
+                 WHERE site_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)',
+                [$siteId, $days]
+            );
+            if (!$row || $row['total'] == 0) return 100.0;
+            return round(($row['up_count'] / $row['total']) * 100, 2);
+        }, 3600); // Cache for 1 hour
     }
 
     // -------------------------------------------------------------------------
