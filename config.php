@@ -118,7 +118,96 @@ define('TEAMS_WEBHOOK_URL', getEnvValue('TEAMS_WEBHOOK_URL', ''));
 define('SSL_EXPIRY_WARNING_DAYS', (int) getEnvValue('SSL_EXPIRY_WARNING_DAYS', 30));
 
 // =============================================================================
+// Advanced Security Settings
+// =============================================================================
+define('ENABLE_SECURITY_MANAGER', filter_var(getEnvValue('ENABLE_SECURITY_MANAGER', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('ENABLE_IP_BLOCKING', filter_var(getEnvValue('ENABLE_IP_BLOCKING', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('MAX_LOGIN_ATTEMPTS', max(3, min(20, (int) getEnvValue('MAX_LOGIN_ATTEMPTS', 5))));
+define('LOGIN_LOCKOUT_DURATION', max(300, min(7200, (int) getEnvValue('LOGIN_LOCKOUT_DURATION', 900)))); // 5min-2hr
+define('ENABLE_SESSION_FINGERPRINTING', filter_var(getEnvValue('ENABLE_SESSION_FINGERPRINTING', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('ENABLE_ADVANCED_RATE_LIMITING', filter_var(getEnvValue('ENABLE_ADVANCED_RATE_LIMITING', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('SECURITY_LOG_LEVEL', getEnvValue('SECURITY_LOG_LEVEL', 'WARNING')); // DEBUG, INFO, WARNING, ERROR
+
+// =============================================================================
+// Performance and Scaling Settings
+// =============================================================================
+define('ENABLE_ASYNC_CHECKS', filter_var(getEnvValue('ENABLE_ASYNC_CHECKS', 'false'), FILTER_VALIDATE_BOOLEAN));
+define('MAX_CONCURRENT_CHECKS', max(1, min(50, (int) getEnvValue('MAX_CONCURRENT_CHECKS', 10))));
+define('ENABLE_QUERY_OPTIMIZATION', filter_var(getEnvValue('ENABLE_QUERY_OPTIMIZATION', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('ENABLE_RESULT_COMPRESSION', filter_var(getEnvValue('ENABLE_RESULT_COMPRESSION', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('CACHE_STRATEGY', getEnvValue('CACHE_STRATEGY', 'file')); // file, redis, memcached
+
+// =============================================================================
+// Monitoring and Observability
+// =============================================================================
+define('ENABLE_METRICS_COLLECTION', filter_var(getEnvValue('ENABLE_METRICS_COLLECTION', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('METRICS_RETENTION_DAYS', max(7, min(90, (int) getEnvValue('METRICS_RETENTION_DAYS', 30))));
+define('ENABLE_PERFORMANCE_PROFILING', filter_var(getEnvValue('ENABLE_PERFORMANCE_PROFILING', 'false'), FILTER_VALIDATE_BOOLEAN));
+define('ENABLE_HEALTH_CHECK_ENDPOINT', filter_var(getEnvValue('ENABLE_HEALTH_CHECK_ENDPOINT', 'true'), FILTER_VALIDATE_BOOLEAN));
+
+// =============================================================================
+// Advanced Alert Configuration
+// =============================================================================
+define('ALERT_ESCALATION_ENABLED', filter_var(getEnvValue('ALERT_ESCALATION_ENABLED', 'false'), FILTER_VALIDATE_BOOLEAN));
+define('ALERT_ESCALATION_LEVELS', getEnvValue('ALERT_ESCALATION_LEVELS', 'warning,critical'));
+define('ENABLE_ALERT_DEDUPING', filter_var(getEnvValue('ENABLE_ALERT_DEDUPING', 'true'), FILTER_VALIDATE_BOOLEAN));
+define('ALERT_DEDUP_WINDOW', max(60, min(3600, (int) getEnvValue('ALERT_DEDUP_WINDOW', 300)))); // 1min-1hr
+
+// =============================================================================
 // Timezone
 // =============================================================================
 $timezone = getEnvValue('TIMEZONE', 'UTC');
 date_default_timezone_set(!empty($timezone) ? $timezone : 'UTC');
+
+// =============================================================================
+// Runtime Configuration Validation
+// =============================================================================
+function validateConfiguration(): array {
+    $errors = [];
+    $warnings = [];
+    
+    // Validate critical paths
+    if (!is_writable(sys_get_temp_dir())) {
+        $errors[] = 'Temp directory is not writable';
+    }
+    
+    if (defined('DB_AVAILABLE') && !DB_AVAILABLE) {
+        $warnings[] = 'Database not available - running in demo mode';
+    }
+    
+    // Validate security settings
+    if (ENABLE_SECURITY_MANAGER && !class_exists('SecurityManager')) {
+        $warnings[] = 'Security Manager enabled but class not found';
+    }
+    
+    // Validate performance settings
+    if (ENABLE_ASYNC_CHECKS && !function_exists('pcntl_fork')) {
+        $warnings[] = 'Async checks enabled but pcntl extension not available';
+    }
+    
+    // Validate cache strategy
+    $validCacheStrategies = ['file', 'redis', 'memcached'];
+    if (!in_array(CACHE_STRATEGY, $validCacheStrategies)) {
+        $errors[] = "Invalid cache strategy: " . CACHE_STRATEGY;
+    }
+    
+    // Validate timeouts
+    if (HTTP_TIMEOUT > 300) {
+        $warnings[] = 'HTTP timeout is very high (>5min)';
+    }
+    
+    if (CHECK_TIMEOUT > 300) {
+        $warnings[] = 'Check timeout is very high (>5min)';
+    }
+    
+    return ['errors' => $errors, 'warnings' => $warnings];
+}
+
+// Run configuration validation
+$configValidation = validateConfiguration();
+if (!empty($configValidation['errors'])) {
+    error_log('Configuration Errors: ' . implode(', ', $configValidation['errors']));
+}
+if (!empty($configValidation['warnings'])) {
+    error_log('Configuration Warnings: ' . implode(', ', $configValidation['warnings']));
+}
