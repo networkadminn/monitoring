@@ -21,19 +21,33 @@ header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
 
-// Session-based rate limiting helper
+// Enhanced rate limiting with IP-based tracking
+function checkRateLimit(string $action, int $maxPerMinute = 30): bool {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $key = "rate_limit_{$action}_" . md5($ip);
+    $cacheFile = sys_get_temp_dir() . '/monitor_' . $key . '.json';
+    
+    $data = ['count' => 0, 'reset_at' => time() + 60];
+    if (file_exists($cacheFile)) {
+        $existing = json_decode(file_get_contents($cacheFile), true);
+        if ($existing && time() < ($existing['reset_at'] ?? 0)) {
+            $data = $existing;
+        }
+    }
+    
+    if (time() >= $data['reset_at']) {
+        $data = ['count' => 0, 'reset_at' => time() + 60];
+    }
+    
+    $data['count']++;
+    file_put_contents($cacheFile, json_encode($data), LOCK_EX);
+    
+    return $data['count'] <= $maxPerMinute;
+}
+
+// Session-based rate limiting helper (deprecated, use checkRateLimit)
 function checkSessionRateLimit(string $action, int $maxPerMinute = 60): bool {
-    $key = "rate_limit_{$action}";
-    if (!isset($_SESSION[$key])) {
-        $_SESSION[$key] = ['count' => 0, 'reset_at' => time() + 60];
-    }
-
-    if (time() >= $_SESSION[$key]['reset_at']) {
-        $_SESSION[$key] = ['count' => 0, 'reset_at' => time() + 60];
-    }
-
-    $_SESSION[$key]['count']++;
-    return $_SESSION[$key]['count'] <= $maxPerMinute;
+    return checkRateLimit($action, $maxPerMinute);
 }
 
 // Session auth check with localhost bypass for testing
@@ -157,11 +171,17 @@ try {
 
         // Dashboard summary cards
         case 'health':
+            if (!checkRateLimit('health', 60)) {
+                jsonError('Rate limit exceeded for health checks (60 per minute)', 429);
+            }
             jsonOk(Statistics::getSystemHealth());
             break;
 
         // All sites with latest status
         case 'sites':
+            if (!checkRateLimit('sites', 30)) {
+                jsonError('Rate limit exceeded for sites list (30 per minute)', 429);
+            }
             $filterType = $_GET['type'] ?? '';
             $filterTag  = $_GET['tag'] ?? '';
 
@@ -339,12 +359,18 @@ try {
         // Save / update a site
         case 'add_site':
             if ($method !== 'POST') jsonError('POST required', 405);
+            if (!checkRateLimit('add_site', 10)) {
+                jsonError('Rate limit exceeded for adding sites (10 per minute)', 429);
+            }
             $data = json_decode(file_get_contents('php://input'), true);
             addSite($data);
             break;
 
         case 'update_site':
             if ($method !== 'POST') jsonError('POST required', 405);
+            if (!checkRateLimit('update_site', 15)) {
+                jsonError('Rate limit exceeded for updating sites (15 per minute)', 429);
+            }
             $data = json_decode(file_get_contents('php://input'), true);
             updateSite($data);
             break;
